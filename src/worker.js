@@ -225,6 +225,7 @@ async function api(req, env, url) {
   const user = await currentUser(req, env);
   if (path === '/api/me' && method === 'GET') return json({ user });
   if (path === '/api/changelog' && method === 'GET') return json(CHANGELOG);
+  if (path === '/api/version' && method === 'GET') return json({ build: env.BUILD_ID || 'dev' });
   if (!user) throw new HttpError(401, 'Not signed in');
   const uid = user.id;
 

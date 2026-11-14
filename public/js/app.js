@@ -626,7 +626,7 @@ function exportCsv() {
 }
 
 function sheet(title, form, onSave, onDelete) {
-  const close = () => { wrap.classList.remove('show'); document.removeEventListener('keydown', esc); setTimeout(() => wrap.remove(), 200); };
+  const close = () => { wrap.classList.remove('show'); document.removeEventListener('keydown', esc); setTimeout(() => { wrap.remove(); if (updatePending) checkUpdate(); }, 200); };
   const esc = ev => ev.key === 'Escape' && close();
   const saveBtn = h('button', { class: 'btn', type: 'submit' }, t('save'));
   form.addEventListener('submit', async ev => {
@@ -766,8 +766,32 @@ async function start() {
     if (ev === 'SIGNED_OUT' && S.data) { S.data = null; authScreen(t('sessionExpired')); }
   });
   try { await boot(); } catch (err) { fail(err); authScreen(); }
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
+
+let loadedBuild = null;
+let updatePending = false;
+
+async function checkUpdate() {
+  let build;
+  try {
+    const res = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin' });
+    if (!res.ok) return;
+    ({ build } = await res.json());
+  } catch { return; }
+  if (!loadedBuild) { loadedBuild = build; return; }
+  if (build === loadedBuild) return;
+  if (document.querySelector('.overlay')) { updatePending = true; return; }
+  try { sessionStorage.setItem('worksite_updated', '1'); } catch {}
+  try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch {}
+  location.reload();
+}
+
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+window.addEventListener('focus', checkUpdate);
+setInterval(checkUpdate, 5 * 60 * 1000);
+checkUpdate();
+try { if (sessionStorage.getItem('worksite_updated')) { sessionStorage.removeItem('worksite_updated'); setTimeout(() => toast(t('appUpdated')), 600); } } catch {}
 
 window.addEventListener('offline', () => toast(t('offline'), true));
 start();

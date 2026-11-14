@@ -1,5 +1,14 @@
 export const CHANGELOG = [
   {
+    version: '1.3.0',
+    date: '2026-11-15',
+    items: [
+      { en: 'The app now updates itself: it checks for a new version when opened, when brought back to the screen, and every 5 minutes, then reloads with a short "The app was updated" message.', ar: 'التطبيق صار يتحدّث لحالو، ما في داعي تمحيه وترجع تنزّلو.' },
+      { en: 'If a form is open, the update waits until it is closed so nothing is lost.', ar: 'إذا في شي مفتوح عم تعبّيه، التحديث بيستنّى لتسكّرو.' },
+      { en: 'App files are never served from an old copy on the phone.', ar: 'التلفون ما بيضل محتفظ بنسخة قديمة.' }
+    ]
+  },
+  {
     version: '1.2.0',
     date: '2026-11-15',
     items: [
