@@ -158,7 +158,7 @@ async function api(req, env, url) {
     } catch {
       throw new HttpError(409, 'Account already exists. Sign in instead.');
     }
-    await env.DB.prepare('INSERT INTO business (owner_id) VALUES (?)').bind(id).run();
+    await env.DB.prepare("INSERT INTO business (owner_id, lang) VALUES (?, 'ar')").bind(id).run();
     return json({ email }, 201, { 'set-cookie': await createSession(env, id) });
   }
 

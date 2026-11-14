@@ -3,7 +3,7 @@ import { createStore } from './store.js';
 import { h, iso, today, toDate, addDays, range, shift, daysIn, round2, csv, startOf } from './util.js';
 
 const root = document.getElementById('app');
-const S = { store: null, data: null, view: 'dashboard', period: 'week', anchor: today(), workerId: null, q: '' };
+const S = { store: null, data: null, view: 'planner', period: 'week', anchor: today(), workerId: null, q: '' };
 
 const nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 const nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -34,7 +34,7 @@ function toast(msg, bad) {
   const el = h('div', { class: 'toast' + (bad ? ' bad' : ''), role: 'status' }, msg);
   document.body.append(el);
   requestAnimationFrame(() => el.classList.add('show'));
-  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2400);
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 3500);
 }
 
 function fail(err) {
@@ -258,12 +258,13 @@ function plannerDay(ws) {
               try {
                 if (k === 'hours') return askHours(w, day, e);
                 await quickSet(w, day, cur === k ? 'planned' : k);
+                toast(`${w.name}: ${cur === k ? t('planned') : label}`);
                 render();
               } catch (err) { fail(err); }
             }
           }, k === 'hours' && cur === 'hours' && e ? `${nf.format(e.hours ?? e.days * S.data.biz.hours_per_day)}${t('hoursShort')}` : label))),
-          siteSel,
-          h('button', { class: 'icon-btn', 'aria-label': t('edit'), onclick: () => editEntry(w, day) }, icon('edit'))));
+          h('div', { class: 'dc-tools' }, siteSel,
+            h('button', { class: 'icon-btn', 'aria-label': t('edit'), onclick: () => editEntry(w, day) }, icon('edit')))));
     })));
 }
 
@@ -399,7 +400,7 @@ function editEntry(w, day) {
 }
 
 function fab(label, fn) {
-  return h('button', { class: 'fab', 'aria-label': label, title: label, onclick: fn }, icon('plus'));
+  return h('button', { class: 'fab', 'aria-label': label, onclick: fn }, icon('plus'), h('span', null, label));
 }
 
 function viewWorkers() {
@@ -561,6 +562,9 @@ function viewSettings() {
   period.value = b.period;
   const ws = h('select', { name: 'week_start' }, [1, 6, 0].map(d => h('option', { value: String(d) }, t('weekdays')[d])));
   ws.value = String(b.week_start);
+  const ts = h('select', { name: 'ts', onchange: () => { applyTextSize(ts.value); try { localStorage.setItem('worksite_ts', ts.value); } catch {} } },
+    h('option', { value: '' }, t('tsNormal')), h('option', { value: 'l' }, t('tsLarge')), h('option', { value: 'xl' }, t('tsXLarge')));
+  try { ts.value = localStorage.getItem('worksite_ts') || ''; } catch {}
   const hpd = h('input', { name: 'hours_per_day', type: 'number', min: '1', max: '24', step: 'any', inputmode: 'decimal', value: b.hours_per_day });
   const rate = h('input', { name: 'lbp_rate', type: 'number', min: '1', step: '1', inputmode: 'numeric', value: b.lbp_rate });
   const form = h('form', { class: 'form card', onsubmit: async ev => {
@@ -572,7 +576,7 @@ function viewSettings() {
       render();
     } catch (err) { fail(err); }
   } },
-    field(t('business'), name), h('div', { class: 'row2' }, field(t('language'), lang), field(t('defaultPeriod'), period)),
+    field(t('business'), name), h('div', { class: 'row2' }, field(t('language'), lang), field(t('textSize'), ts)), field(t('defaultPeriod'), period),
     h('div', { class: 'row2' }, field(t('weekStart'), ws), field(t('hoursPerDay'), hpd)), field(t('lbpRate'), rate),
     h('button', { class: 'btn', type: 'submit' }, t('save')));
 
@@ -656,12 +660,17 @@ async function removeRow(kind, id) {
   if (kind === 'sites') S.data.entries.forEach(e => { if (e.site_id === id) e.site_id = null; });
 }
 
-const TABS = ['dashboard', 'planner', 'workers', 'payments', 'settings'];
+function applyTextSize(v) {
+  document.documentElement.classList.remove('ts-l', 'ts-xl');
+  if (v === 'l' || v === 'xl') document.documentElement.classList.add('ts-' + v);
+}
+
+const TABS = ['planner', 'workers', 'payments', 'dashboard', 'settings'];
 
 function render() {
   const views = { dashboard: viewDashboard, planner: viewPlanner, workers: viewWorkers, worker: viewWorker, payments: viewPayments, settings: viewSettings };
   const active = S.view === 'worker' ? 'workers' : S.view;
-  const navBtn = k => h('button', { class: active === k ? 'on' : '', 'aria-current': active === k ? 'page' : null, onclick: () => { S.view = k; S.q = ''; render(); window.scrollTo(0, 0); } }, icon(k), h('span', null, t(k)));
+  const navBtn = k => h('button', { class: active === k ? 'on' : '', 'aria-current': active === k ? 'page' : null, onclick: () => { S.view = k; S.q = ''; if (k === 'planner') { S.period = 'day'; S.anchor = today(); } else if (k === 'dashboard' || k === 'payments') S.period = S.data.biz.period; render(); window.scrollTo(0, 0); } }, icon(k), h('span', null, t(k)));
   root.replaceChildren(
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
@@ -721,13 +730,15 @@ async function boot() {
   }));
   ['lbp_rate', 'hours_per_day', 'week_start'].forEach(f => { S.data.biz[f] = Number(S.data.biz[f]); });
   setLang(S.data.biz.lang);
-  S.period = S.data.biz.period;
+  S.view = 'planner';
+  S.period = 'day';
+  S.anchor = today();
   render();
 }
 
 async function start() {
   let mode = null;
-  try { mode = localStorage.getItem('worksite_mode'); setLang(localStorage.getItem('worksite_lang') || ((navigator.language || '').startsWith('ar') ? 'ar' : 'en')); } catch {}
+  try { mode = localStorage.getItem('worksite_mode'); setLang(localStorage.getItem('worksite_lang') || 'ar'); applyTextSize(localStorage.getItem('worksite_ts')); } catch {}
   S.store = createStore(mode === 'demo');
   S.store.onAuth((ev) => {
     if (ev === 'SIGNED_OUT' && S.data) { S.data = null; authScreen(t('sessionExpired')); }

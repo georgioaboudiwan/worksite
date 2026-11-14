@@ -1,7 +1,7 @@
 const STR = {
   en: {
     app: 'Worksite', tagline: 'Crew, days and pay — in one place',
-    dashboard: 'Dashboard', planner: 'Planner', workers: 'Workers', payments: 'Payments', settings: 'Settings',
+    dashboard: 'Summary', planner: 'Today', workers: 'Workers', payments: 'Payments', settings: 'Settings',
     day: 'Day', week: 'Week', month: 'Month', today: 'Today',
     earned: 'Earned', paid: 'Paid', left: 'Left to pay', owed: 'Total owed', owedHint: 'All time, all workers',
     periodHint: 'This period', onSite: 'On site today', planned: 'Planned', worked: 'Worked', absent: 'Absent',
@@ -28,14 +28,14 @@ const STR = {
     advance: 'Paid ahead', credit: 'credit', weekdays: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
     months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
     sessionExpired: 'Session expired. Please sign in again.', offline: 'You are offline',
-    copied: 'Copied {n} plans', marked: 'Marked {n} as worked', install: 'Install app', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
+    copied: 'Copied {n} plans', marked: 'Marked {n} as worked', install: 'Install app', textSize: 'Text size', tsNormal: 'Normal', tsLarge: 'Large', tsXLarge: 'Extra large', weekView: 'Week', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
   },
   ar: {
     app: 'ورشتي', tagline: 'العمّال، الأيام والدفعات — بمكان واحد',
-    dashboard: 'الرئيسية', planner: 'التخطيط', workers: 'العمّال', payments: 'الدفعات', settings: 'الإعدادات',
+    dashboard: 'الملخّص', planner: 'اليوم', workers: 'العمّال', payments: 'الدفعات', settings: 'الإعدادات',
     day: 'يوم', week: 'أسبوع', month: 'شهر', today: 'اليوم',
-    earned: 'المستحق', paid: 'المدفوع', left: 'الباقي', owed: 'مجموع الديون', owedHint: 'كل الفترات، كل العمّال',
-    periodHint: 'هذه الفترة', onSite: 'بالورشة اليوم', planned: 'مخطط', worked: 'اشتغل', absent: 'غائب',
+    earned: 'المستحق', paid: 'المدفوع', left: 'الباقي عليك', owed: 'كل الباقي عليك', owedHint: 'لكل العمّال من الأول',
+    periodHint: 'هذه الفترة', onSite: 'بالورشة اليوم', planned: 'مخطط', worked: 'اشتغل', absent: 'غايب',
     laborCost: 'كلفة العمّال', bySite: 'الكلفة حسب الورشة', byWorker: 'حسب العامل', noSite: 'بلا ورشة',
     days: 'أيام', balance: 'الرصيد', rate: 'اليومية', perDay: '/يوم',
     addWorker: 'إضافة عامل', editWorker: 'تعديل عامل', name: 'الاسم', phone: 'الهاتف', trade: 'المهنة',
@@ -43,11 +43,11 @@ const STR = {
     edit: 'تعديل', save: 'حفظ', cancel: 'إلغاء', delete: 'حذف', confirmDelete: 'حذف؟ لا يمكن التراجع.',
     addPayment: 'إضافة دفعة', editPayment: 'تعديل دفعة', amount: 'المبلغ', currency: 'العملة', date: 'التاريخ',
     method: 'الطريقة', cash: 'كاش', transfer: 'تحويل مصرفي', whish: 'Whish', omt: 'OMT', other: 'غير ذلك',
-    note: 'ملاحظة', worker: 'العامل', site: 'الورشة', status: 'الحالة', full: 'يوم كامل', half: 'نص يوم',
+    note: 'ملاحظة', worker: 'العامل', site: 'الورشة', status: 'الحالة', full: 'يوم كامل', half: 'نص نهار',
     hours: 'ساعات', hoursShort: 'س', custom: 'مخصص', fraction: 'جزء من اليوم',
     payBalance: 'ادفع الباقي', pay: 'ادفع', history: 'السجل', noData: 'لا شيء بعد',
     noWorkers: 'أضف أول عامل لتبدأ التخطيط.', copyLastWeek: 'انسخ الأسبوع الماضي',
-    markWorked: 'سجّل المخطط كمشتغل', clearDay: 'مسح',
+    markWorked: 'كلّهم اشتغلوا', clearDay: 'مسح',
     business: 'اسم الشركة', language: 'اللغة', defaultPeriod: 'الفترة الافتراضية', weekStart: 'بداية الأسبوع',
     hoursPerDay: 'ساعات اليوم الكامل', lbpRate: 'سعر الليرة (1 دولار =)', sites: 'الورش', addSite: 'إضافة ورشة',
     location: 'الموقع', signOut: 'تسجيل الخروج', exportCsv: 'تصدير CSV', demo: 'وضع تجريبي — البيانات على هذا الجهاز فقط',
@@ -59,13 +59,13 @@ const STR = {
     advance: 'مدفوع سلفاً', credit: 'سلفة', weekdays: ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'],
     months: ['كانون٢','شباط','آذار','نيسان','أيار','حزيران','تموز','آب','أيلول','تشرين١','تشرين٢','كانون١'],
     sessionExpired: 'انتهت الجلسة. ادخل من جديد.', offline: 'لا يوجد اتصال',
-    copied: 'تم نسخ {n}', marked: 'تم تسجيل {n}', install: 'ثبّت التطبيق', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
+    copied: 'تم نسخ {n}', marked: 'تم تسجيل {n}', install: 'ثبّت التطبيق', textSize: 'حجم الخط', tsNormal: 'عادي', tsLarge: 'كبير', tsXLarge: 'كبير جداً', weekView: 'الأسبوع', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
   }
 };
 
-let lang = 'en';
+let lang = 'ar';
 export const setLang = l => {
-  lang = STR[l] ? l : 'en';
+  lang = STR[l] ? l : 'ar';
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
 };
