@@ -15,7 +15,7 @@ ADMIN_EMAIL = "aboudiwangeorgio1@gmail.com"
 APP_URL = "https://worksite.aboudiwangeorgio1.workers.dev"
 
 [triggers]
-crons = ["*/10 * * * *"]
+crons = ["*/10 * * * *", "0 6 * * *"]
 
 [[d1_databases]]
 binding = "DB"

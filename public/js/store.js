@@ -2,12 +2,14 @@ import { addDays, iso, startOf } from './util.js';
 
 const FIELDS = {
   workers: ['name', 'phone', 'trade', 'daily_rate', 'active', 'notes'],
-  sites: ['name', 'location', 'active'],
+  sites: ['name', 'location', 'client', 'active'],
   entries: ['worker_id', 'site_id', 'day', 'status', 'days', 'hours', 'rate', 'note'],
-  payments: ['worker_id', 'paid_on', 'amount', 'currency', 'lbp_amount', 'lbp_rate', 'method', 'note']
+  payments: ['worker_id', 'paid_on', 'kind', 'amount', 'currency', 'lbp_amount', 'lbp_rate', 'method', 'note'],
+  adjustments: ['worker_id', 'day', 'kind', 'amount', 'hours', 'note'],
+  site_txns: ['site_id', 'day', 'kind', 'category', 'amount', 'currency', 'lbp_amount', 'lbp_rate', 'note']
 };
-const BIZ_FIELDS = ['name', 'lbp_rate', 'hours_per_day', 'period', 'week_start', 'lang'];
-const DEFAULT_BIZ = { name: '', lbp_rate: 89500, hours_per_day: 8, period: 'week', week_start: 1, lang: 'ar' };
+const BIZ_FIELDS = ['name', 'lbp_rate', 'hours_per_day', 'period', 'week_start', 'lang', 'payday', 'weekly_email', 'overtime_multiplier'];
+const DEFAULT_BIZ = { name: '', lbp_rate: 89500, hours_per_day: 8, period: 'week', week_start: 1, lang: 'ar', payday: 6, weekly_email: false, overtime_multiplier: 1.5 };
 
 const pick = (row, keys) => Object.fromEntries(keys.filter(k => k in row).map(k => [k, row[k] === '' ? null : row[k]]));
 const calcAmount = e => e.status === 'worked' ? Math.round(Number(e.days) * Number(e.rate) * 100) / 100 : 0;
@@ -33,11 +35,14 @@ function apiStore() {
     onAuth: cb => { authCb = cb; },
     session: async () => (await call('GET', 'me')).user,
     signIn: (email, password) => call('POST', 'login', { email, password }),
-    signUp: async (email, password) => ({ session: await call('POST', 'signup', { email, password }) }),
+    signUp: async (email, password, invite) => ({ session: await call('POST', 'signup', { email, password, invite: invite || undefined }) }),
     changePassword: (current, password) => call('POST', 'password', { current, password }),
     signOut: async () => { try { await call('POST', 'logout', {}); } catch {} },
     load: () => call('GET', 'data'),
     changelog: () => call('GET', 'changelog'),
+    invite: () => call('POST', 'invites', {}),
+    members: () => call('GET', 'members'),
+    removeMember: id => call('DELETE', `members/${id}`),
     saveBiz: row => call('PUT', 'biz', pick(row, BIZ_FIELDS)),
     save: (kind, row) => row.id ? call('PUT', `${kind}/${row.id}`, pick(row, FIELDS[kind])) : call('POST', kind, pick(row, FIELDS[kind])),
     saveMany: (kind, rows) => rows.length ? call('POST', `${kind}/bulk`, rows.map(r => pick(r, FIELDS[kind]))) : Promise.resolve([]),
@@ -51,6 +56,8 @@ function demoStore() {
   const write = db => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
   const uid = () => crypto.randomUUID();
   let db = read() || seed();
+  db.biz = { ...DEFAULT_BIZ, ...db.biz };
+  ['adjustments', 'site_txns'].forEach(k => { db[k] = db[k] || []; });
   write(db);
 
   function seed() {
@@ -84,7 +91,7 @@ function demoStore() {
       payments.push({ id: uid(), worker_id: wk.id, paid_on: addDays(monday, -9), amount: wk.daily_rate * 5, currency: 'USD', method: 'cash', note: '' });
       if (i % 2 === 0) payments.push({ id: uid(), worker_id: wk.id, paid_on: addDays(monday, -2), amount: wk.daily_rate * 4, currency: 'LBP', lbp_amount: wk.daily_rate * 4 * 89500, lbp_rate: 89500, method: 'cash', note: '' });
     });
-    return { biz: { ...DEFAULT_BIZ, name: 'Demo Contracting' }, workers: w, sites: s, entries, payments };
+    return { biz: { ...DEFAULT_BIZ, name: 'Demo Contracting' }, workers: w, sites: s, entries, payments, adjustments: [], site_txns: [] };
   }
 
   const clone = x => JSON.parse(JSON.stringify(x));
@@ -103,15 +110,15 @@ function demoStore() {
     onAuth: () => {},
     session: async () => ({ user: { email: 'demo@worksite' } }),
     signOut: async () => { try { localStorage.removeItem(KEY); localStorage.removeItem('worksite_mode'); } catch {} },
-    async load() { return clone(db); },
+    async load() { return { role: 'owner', ...clone(db) }; },
     changelog: () => fetch('/api/changelog').then(r => r.ok ? r.json() : []).catch(() => []),
     async saveBiz(row) { db.biz = { ...db.biz, ...pick(row, BIZ_FIELDS) }; write(db); return clone(db.biz); },
     async save(kind, row) { const r = upsertLocal(kind, row); write(db); return r; },
     async saveMany(kind, rows) { const r = rows.map(x => upsertLocal(kind, x)); write(db); return r; },
     async remove(kind, id) {
       db[kind] = db[kind].filter(r => r.id !== id);
-      if (kind === 'workers') { db.entries = db.entries.filter(e => e.worker_id !== id); db.payments = db.payments.filter(p => p.worker_id !== id); }
-      if (kind === 'sites') db.entries.forEach(e => { if (e.site_id === id) e.site_id = null; });
+      if (kind === 'workers') ['entries', 'payments', 'adjustments'].forEach(k => { db[k] = db[k].filter(x => x.worker_id !== id); });
+      if (kind === 'sites') { db.entries.forEach(e => { if (e.site_id === id) e.site_id = null; }); db.site_txns = db.site_txns.filter(x => x.site_id !== id); }
       write(db);
     }
   };

@@ -28,7 +28,15 @@ const STR = {
     advance: 'Paid ahead', credit: 'credit', weekdays: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
     months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
     sessionExpired: 'Session expired. Please sign in again.', offline: 'You are offline',
-    copied: 'Copied {n} plans', marked: 'Marked {n} as worked', install: 'Install app', textSize: 'Text size', tsNormal: 'Normal', tsLarge: 'Large', tsXLarge: 'Extra large', weekView: 'Week', appUpdated: 'The app was updated', whatsNew: "What's new", version: 'Version', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
+    copied: 'Copied {n} plans', marked: 'Marked {n} as worked', install: 'Install app', textSize: 'Text size', tsNormal: 'Normal', tsLarge: 'Large', tsXLarge: 'Extra large', weekView: 'Week', appUpdated: 'The app was updated', sitesTab: 'Projects', siteDetail: 'Project', client: 'Client', income: 'Client paid', expenses: 'Expenses', profit: 'Profit', labor: 'Labour',
+    addExpense: 'Add expense', addIncome: 'Client payment', editTxn: 'Edit entry', category: 'Category', materials: 'Materials', equipment: 'Equipment', transport: 'Transport', food: 'Food',
+    onSiteToday: 'On site today', workedHere: 'Worked here', allTime: 'All time', noSites: 'Add your first project.',
+    assignSite: 'Assign to', assignHint: 'Pick a project, then tap days to place workers there', none: 'None',
+    wage: 'Wage', advanceKind: 'Advance', advances: 'Advances', giveAdvance: 'Advance', adjust: 'Bonus / deduction', bonus: 'Bonus', deduction: 'Deduction', overtime: 'Overtime',
+    otMultiplier: 'Overtime rate (× hourly)', whatsapp: 'WhatsApp', stmtHi: 'Hi {name},', stmtFor: 'Your account for {period}:', stmtDays: 'Days worked', stmtEarned: 'Earned', stmtPaid: 'Paid', stmtLeft: 'Left', stmtTotal: 'Total still owed to you',
+    payday: 'Payday', paydayToday: "Today is payday", paydayOwe: 'You owe {amount} to {n} workers', weeklyEmail: 'Email me a payday summary with a backup every payday',
+    team: 'Team', inviteForeman: 'Invite a foreman', inviteCode: 'Invite code', inviteNote: 'Send this code to the foreman. It works once and expires in 7 days.', share: 'Share', copy: 'Copy', copiedOk: 'Copied',
+    removeMember: 'Remove', foreman: 'Foreman', noMembers: 'No foremen yet', haveInvite: 'Invite code (foremen only)', notAllowed: 'Not allowed', whatsNew: "What's new", version: 'Version', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
   },
   ar: {
     app: 'ورشتي', tagline: 'العمّال، الأيام والدفعات — بمكان واحد',
@@ -59,7 +67,15 @@ const STR = {
     advance: 'مدفوع سلفاً', credit: 'سلفة', weekdays: ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'],
     months: ['كانون٢','شباط','آذار','نيسان','أيار','حزيران','تموز','آب','أيلول','تشرين١','تشرين٢','كانون١'],
     sessionExpired: 'انتهت الجلسة. ادخل من جديد.', offline: 'لا يوجد اتصال',
-    copied: 'تم نسخ {n}', marked: 'تم تسجيل {n}', install: 'ثبّت التطبيق', textSize: 'حجم الخط', tsNormal: 'عادي', tsLarge: 'كبير', tsXLarge: 'كبير جداً', weekView: 'الأسبوع', appUpdated: 'التطبيق تحدّث', whatsNew: 'شو الجديد', version: 'نسخة', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
+    copied: 'تم نسخ {n}', marked: 'تم تسجيل {n}', install: 'ثبّت التطبيق', textSize: 'حجم الخط', tsNormal: 'عادي', tsLarge: 'كبير', tsXLarge: 'كبير جداً', weekView: 'الأسبوع', appUpdated: 'التطبيق تحدّث', sitesTab: 'المشاريع', siteDetail: 'المشروع', client: 'الزبون', income: 'دفع الزبون', expenses: 'المصاريف', profit: 'الربح', labor: 'العمّال',
+    addExpense: 'إضافة مصروف', addIncome: 'دفعة من الزبون', editTxn: 'تعديل', category: 'النوع', materials: 'مواد', equipment: 'معدّات', transport: 'نقل', food: 'أكل',
+    onSiteToday: 'بالورشة اليوم', workedHere: 'اشتغلوا هون', allTime: 'من الأول', noSites: 'أضف أول مشروع.',
+    assignSite: 'حطّ على', assignHint: 'اختار مشروع وكبّس على الأيام لتحطّ العمّال فيه', none: 'لا شي',
+    wage: 'أجرة', advanceKind: 'سلفة', advances: 'السلف', giveAdvance: 'سلفة', adjust: 'مكافأة / خصم', bonus: 'مكافأة', deduction: 'خصم', overtime: 'ساعات إضافية',
+    otMultiplier: 'سعر الساعة الإضافية (× سعر الساعة)', whatsapp: 'واتساب', stmtHi: 'مرحبا {name}،', stmtFor: 'حسابك عن {period}:', stmtDays: 'أيام الشغل', stmtEarned: 'المستحق', stmtPaid: 'المدفوع', stmtLeft: 'الباقي', stmtTotal: 'كل الباقي إلك',
+    payday: 'يوم القبض', paydayToday: 'اليوم يوم القبض', paydayOwe: 'عليك {amount} لـ {n} عمّال', weeklyEmail: 'ابعتلي إيميل بالحساب ونسخة احتياطية كل يوم قبض',
+    team: 'الفريق', inviteForeman: 'دعوة رئيس ورشة', inviteCode: 'رمز الدعوة', inviteNote: 'ابعت الرمز لرئيس الورشة. بيشتغل مرة وحدة وبينتهي بعد ٧ أيام.', share: 'مشاركة', copy: 'نسخ', copiedOk: 'انّسخ',
+    removeMember: 'شيل', foreman: 'رئيس ورشة', noMembers: 'ما في رؤساء ورش بعد', haveInvite: 'رمز الدعوة (لرؤساء الورش)', notAllowed: 'ممنوع', whatsNew: 'شو الجديد', version: 'نسخة', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
   }
 };
 

@@ -1,5 +1,20 @@
 export const CHANGELOG = [
   {
+    version: '1.5.0',
+    date: '2026-11-15',
+    items: [
+      { en: 'New Projects tab: each site shows who is there today, labour cost, expenses, client payments and profit.', ar: 'قسم المشاريع: لكل ورشة مين فيها اليوم، كلفة العمّال، المصاريف، دفعات الزبون والربح.' },
+      { en: 'Assign workers to sites per day: pick a project in the Planner, then tap days. Each site has its own colour.', ar: 'وزّع العمّال على الورش كل يوم: اختار المشروع وكبّس على الأيام. كل ورشة إلها لون.' },
+      { en: 'Advances (salaf) recorded separately and deducted from the balance automatically.', ar: 'السلف بتنسجّل لحالها وبتنخصم من الباقي.' },
+      { en: 'Bonuses, deductions and overtime per worker.', ar: 'مكافآت، خصومات وساعات إضافية لكل عامل.' },
+      { en: 'Send a worker their statement on WhatsApp in one tap.', ar: 'ابعت للعامل حسابو على واتساب بكبسة.' },
+      { en: 'Payday card on the Dashboard with who you owe, plus a payday email with a full CSV backup.', ar: 'تذكير يوم القبض بالرئيسية وإيميل فيه الحساب ونسخة احتياطية.' },
+      { en: 'Foreman accounts by invite code: they mark attendance and sites only, with no access to money.', ar: 'حسابات لرؤساء الورش برمز دعوة: بيسجّلوا الحضور بس، بلا مصاري.' },
+      { en: 'New design: glass tab bar with a sliding highlight, swipe between tabs, swipe back from detail pages, bottom sheets.', ar: 'تصميم جديد: قائمة زجاجية، سحب بين الأقسام، ورجوع بالسحب.' },
+      { en: 'Fixed dark mode not switching on.', ar: 'تصليح الوضع الليلي.' }
+    ]
+  },
+  {
     version: '1.4.0',
     date: '2026-11-15',
     items: [
