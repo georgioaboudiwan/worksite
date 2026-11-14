@@ -400,7 +400,7 @@ function editEntry(w, day) {
 }
 
 function fab(label, fn) {
-  return h('button', { class: 'fab', 'aria-label': label, onclick: fn }, icon('plus'), h('span', null, label));
+  return h('button', { class: 'fab', 'aria-label': label, title: label, onclick: fn }, icon('plus'));
 }
 
 function viewWorkers() {
@@ -565,13 +565,6 @@ function viewSettings() {
   const ts = h('select', { name: 'ts', onchange: () => { applyTextSize(ts.value); try { localStorage.setItem('worksite_ts', ts.value); } catch {} } },
     h('option', { value: '' }, t('tsNormal')), h('option', { value: 'l' }, t('tsLarge')), h('option', { value: 'xl' }, t('tsXLarge')));
   try { ts.value = localStorage.getItem('worksite_ts') || ''; } catch {}
-  const mode = h('select', { name: 'mode', onchange: () => {
-    applyMode(mode.value);
-    try { localStorage.setItem('worksite_mode_ui', mode.value); } catch {}
-    S.view = 'settings';
-    render();
-  } }, h('option', { value: '' }, t('modeSimple')), h('option', { value: 'pro' }, t('modeAdvanced')));
-  mode.value = isPro() ? 'pro' : '';
   const hpd = h('input', { name: 'hours_per_day', type: 'number', min: '1', max: '24', step: 'any', inputmode: 'decimal', value: b.hours_per_day });
   const rate = h('input', { name: 'lbp_rate', type: 'number', min: '1', step: '1', inputmode: 'numeric', value: b.lbp_rate });
   const form = h('form', { class: 'form card', onsubmit: async ev => {
@@ -583,7 +576,7 @@ function viewSettings() {
       render();
     } catch (err) { fail(err); }
   } },
-    field(t('mode'), mode), field(t('business'), name), h('div', { class: 'row2' }, field(t('language'), lang), field(t('textSize'), ts)), field(t('defaultPeriod'), period),
+    field(t('business'), name), h('div', { class: 'row2' }, field(t('language'), lang), field(t('textSize'), ts)), field(t('defaultPeriod'), period),
     h('div', { class: 'row2' }, field(t('weekStart'), ws), field(t('hoursPerDay'), hpd)), field(t('lbpRate'), rate),
     h('button', { class: 'btn', type: 'submit' }, t('save')));
 
@@ -671,16 +664,10 @@ async function removeRow(kind, id) {
   if (kind === 'sites') S.data.entries.forEach(e => { if (e.site_id === id) e.site_id = null; });
 }
 
-const isPro = () => document.documentElement.classList.contains('pro');
-
-function applyMode(v) {
-  document.documentElement.classList.toggle('pro', v === 'pro');
-}
-
 function landing() {
   S.anchor = today();
-  if (isPro()) { S.view = 'dashboard'; S.period = S.data.biz.period; }
-  else { S.view = 'planner'; S.period = 'day'; }
+  S.view = 'dashboard';
+  S.period = S.data.biz.period;
 }
 
 function applyTextSize(v) {
@@ -688,24 +675,28 @@ function applyTextSize(v) {
   if (v === 'l' || v === 'xl') document.documentElement.classList.add('ts-' + v);
 }
 
-const tabs = () => isPro() ? ['dashboard', 'planner', 'workers', 'payments', 'settings'] : ['planner', 'workers', 'payments', 'dashboard', 'settings'];
+const TABS = ['dashboard', 'planner', 'workers', 'payments', 'settings'];
 
 function render() {
   const views = { dashboard: viewDashboard, planner: viewPlanner, workers: viewWorkers, worker: viewWorker, payments: viewPayments, settings: viewSettings };
   const active = S.view === 'worker' ? 'workers' : S.view;
-  const navBtn = k => h('button', { class: active === k ? 'on' : '', 'aria-current': active === k ? 'page' : null, onclick: () => { S.view = k; S.q = ''; if (k === 'planner') { S.period = isPro() ? 'week' : 'day'; S.anchor = today(); } else if (k === 'dashboard' || k === 'payments') S.period = S.data.biz.period; render(); window.scrollTo(0, 0); } }, icon(k), h('span', null, t(k)));
+  const navBtn = k => h('button', { class: active === k ? 'on' : '', 'aria-current': active === k ? 'page' : null, onclick: () => { S.view = k; S.q = ''; if (k === 'planner') { S.period = 'week'; S.anchor = today(); S.scrollToday = true; } else if (k === 'dashboard' || k === 'payments') S.period = S.data.biz.period; render(); window.scrollTo(0, 0); } }, icon(k), h('span', null, t(k)));
   root.replaceChildren(
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
         h('div', { class: 'brand' }, h('span', { class: 'logo' }, icon('helmet')), h('div', null, h('b', null, t('app')), h('small', null, S.data.biz.name || ''))),
-        h('nav', null, tabs().map(navBtn)),
+        h('nav', null, TABS.map(navBtn)),
         S.store.demo && h('p', { class: 'banner sm' }, t('demo'))),
       h('main', null,
         h('header', { class: 'top' },
           h('span', { class: 'logo sm' }, icon('helmet')),
           h('div', null, h('h1', null, S.view === 'worker' ? t('workers') : t(S.view)), h('small', { class: 'muted' }, S.data.biz.name || t('app')))),
         views[S.view]()),
-      h('nav', { class: 'tabs' }, tabs().map(navBtn))));
+      h('nav', { class: 'tabs' }, TABS.map(navBtn))));
+  if (S.scrollToday && S.view === 'planner') {
+    S.scrollToday = false;
+    requestAnimationFrame(() => root.querySelector('.grid-wrap .dh.now')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
+  }
 }
 
 function authScreen(msg) {
@@ -760,7 +751,7 @@ async function boot() {
 
 async function start() {
   let mode = null;
-  try { mode = localStorage.getItem('worksite_mode'); setLang(localStorage.getItem('worksite_lang') || 'ar'); applyTextSize(localStorage.getItem('worksite_ts')); applyMode(localStorage.getItem('worksite_mode_ui')); } catch {}
+  try { mode = localStorage.getItem('worksite_mode'); setLang(localStorage.getItem('worksite_lang') || 'ar'); applyTextSize(localStorage.getItem('worksite_ts')); localStorage.removeItem('worksite_mode_ui'); } catch {}
   S.store = createStore(mode === 'demo');
   S.store.onAuth((ev) => {
     if (ev === 'SIGNED_OUT' && S.data) { S.data = null; authScreen(t('sessionExpired')); }

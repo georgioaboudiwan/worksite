@@ -1,5 +1,13 @@
 export const CHANGELOG = [
   {
+    version: '1.4.0',
+    date: '2026-11-15',
+    items: [
+      { en: 'Removed the Simple style. Everyone now uses the compact Advanced layout: opens on the Dashboard, Planner shows the week grid, dark mode follows the phone.', ar: 'شلنا الشكل السهل. التطبيق صار بالشكل المتقدّم للكل.' },
+      { en: 'Tabs: Dashboard, Planner, Workers, Payments, Settings. Text size setting is still in Settings.', ar: 'القائمة: الرئيسية، التخطيط، العمّال، الدفعات، الإعدادات. حجم الخط بعدو بالإعدادات.' }
+    ]
+  },
+  {
     version: '1.3.0',
     date: '2026-11-15',
     items: [

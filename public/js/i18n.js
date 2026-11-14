@@ -1,7 +1,7 @@
 const STR = {
   en: {
     app: 'Worksite', tagline: 'Crew, days and pay — in one place',
-    dashboard: 'Summary', planner: 'Today', workers: 'Workers', payments: 'Payments', settings: 'Settings',
+    dashboard: 'Dashboard', planner: 'Planner', workers: 'Workers', payments: 'Payments', settings: 'Settings',
     day: 'Day', week: 'Week', month: 'Month', today: 'Today',
     earned: 'Earned', paid: 'Paid', left: 'Left to pay', owed: 'Total owed', owedHint: 'All time, all workers',
     periodHint: 'This period', onSite: 'On site today', planned: 'Planned', worked: 'Worked', absent: 'Absent',
@@ -28,11 +28,11 @@ const STR = {
     advance: 'Paid ahead', credit: 'credit', weekdays: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
     months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
     sessionExpired: 'Session expired. Please sign in again.', offline: 'You are offline',
-    copied: 'Copied {n} plans', marked: 'Marked {n} as worked', install: 'Install app', textSize: 'Text size', tsNormal: 'Normal', tsLarge: 'Large', tsXLarge: 'Extra large', weekView: 'Week', appUpdated: 'The app was updated', mode: 'App style', modeSimple: 'Simple (big text)', modeAdvanced: 'Advanced (compact)', whatsNew: "What's new", version: 'Version', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
+    copied: 'Copied {n} plans', marked: 'Marked {n} as worked', install: 'Install app', textSize: 'Text size', tsNormal: 'Normal', tsLarge: 'Large', tsXLarge: 'Extra large', weekView: 'Week', appUpdated: 'The app was updated', whatsNew: "What's new", version: 'Version', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
   },
   ar: {
     app: 'ورشتي', tagline: 'العمّال، الأيام والدفعات — بمكان واحد',
-    dashboard: 'الملخّص', planner: 'اليوم', workers: 'العمّال', payments: 'الدفعات', settings: 'الإعدادات',
+    dashboard: 'الرئيسية', planner: 'التخطيط', workers: 'العمّال', payments: 'الدفعات', settings: 'الإعدادات',
     day: 'يوم', week: 'أسبوع', month: 'شهر', today: 'اليوم',
     earned: 'المستحق', paid: 'المدفوع', left: 'الباقي عليك', owed: 'كل الباقي عليك', owedHint: 'لكل العمّال من الأول',
     periodHint: 'هذه الفترة', onSite: 'بالورشة اليوم', planned: 'مخطط', worked: 'اشتغل', absent: 'غايب',
@@ -59,7 +59,7 @@ const STR = {
     advance: 'مدفوع سلفاً', credit: 'سلفة', weekdays: ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'],
     months: ['كانون٢','شباط','آذار','نيسان','أيار','حزيران','تموز','آب','أيلول','تشرين١','تشرين٢','كانون١'],
     sessionExpired: 'انتهت الجلسة. ادخل من جديد.', offline: 'لا يوجد اتصال',
-    copied: 'تم نسخ {n}', marked: 'تم تسجيل {n}', install: 'ثبّت التطبيق', textSize: 'حجم الخط', tsNormal: 'عادي', tsLarge: 'كبير', tsXLarge: 'كبير جداً', weekView: 'الأسبوع', appUpdated: 'التطبيق تحدّث', mode: 'شكل التطبيق', modeSimple: 'سهل (خط كبير)', modeAdvanced: 'متقدّم (مضغوط)', whatsNew: 'شو الجديد', version: 'نسخة', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
+    copied: 'تم نسخ {n}', marked: 'تم تسجيل {n}', install: 'ثبّت التطبيق', textSize: 'حجم الخط', tsNormal: 'عادي', tsLarge: 'كبير', tsXLarge: 'كبير جداً', weekView: 'الأسبوع', appUpdated: 'التطبيق تحدّث', whatsNew: 'شو الجديد', version: 'نسخة', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
   }
 };
 
