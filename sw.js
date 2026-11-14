@@ -1,4 +1,4 @@
-const CACHE = 'worksite-v1';
+const CACHE = 'worksite-v2';
 const SHELL = ['./', 'index.html', 'styles.css', 'config.js', 'manifest.webmanifest', 'vendor/supabase.js',
   'js/app.js', 'js/store.js', 'js/util.js', 'js/i18n.js', 'icons/icon.svg', 'icons/icon-192.png'];
 

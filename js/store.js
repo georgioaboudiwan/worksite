@@ -48,7 +48,7 @@ function cloudStore() {
       return { biz: biz || (await this.saveBiz(DEFAULT_BIZ)), workers, sites, entries, payments };
     },
     async saveBiz(row) {
-      return ok(await sb.from('ws_business').upsert(pick(row, BIZ_FIELDS), { onConflict: 'owner_id' }).select().single());
+      return ok(await sb.from('ws_business').upsert({ ...pick(row, BIZ_FIELDS), name: row.name ?? '' }, { onConflict: 'owner_id' }).select().single());
     },
     async save(kind, row) {
       const data = pick(row, FIELDS[kind]);
