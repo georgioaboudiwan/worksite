@@ -1,5 +1,5 @@
 import { t, setLang, getLang } from './i18n.js';
-import { createStore, configured } from './store.js';
+import { createStore } from './store.js';
 import { h, iso, today, toDate, addDays, range, shift, daysIn, round2, csv, startOf } from './util.js';
 
 const root = document.getElementById('app');
@@ -585,7 +585,8 @@ function viewSettings() {
   const acct = h('div', { class: 'card stack' },
     S.store.demo && h('p', { class: 'banner' }, t('demo')),
     h('button', { class: 'btn ghost', onclick: exportCsv }, t('exportCsv')),
-    h('button', { class: 'btn danger ghost', onclick: async () => { await S.store.signOut(); location.reload(); } }, t('signOut')));
+    !S.store.demo && h('button', { class: 'btn ghost', onclick: changePassword }, t('changePassword')),
+    h('button', { class: 'btn danger ghost', onclick: async () => { await S.store.signOut(); try { localStorage.removeItem('worksite_mode'); } catch {} location.reload(); } }, t('signOut')));
   return h('div', { class: 'view narrow' }, form, sites, acct);
 }
 
@@ -682,18 +683,12 @@ function authScreen(msg) {
   const info = h('p', { class: 'info' }, msg || '');
   const submit = h('button', { class: 'btn wide', type: 'submit' });
   const toggle = h('button', { class: 'link-btn', type: 'button' });
-  const forgot = h('button', { class: 'link-btn', type: 'button' }, t('forgot'));
   const draw = () => {
     submit.textContent = mode === 'in' ? t('signIn') : t('signUp');
     toggle.textContent = mode === 'in' ? t('noAccount') : t('haveAccount');
     pw.autocomplete = mode === 'in' ? 'current-password' : 'new-password';
-    forgot.hidden = mode !== 'in';
   };
   toggle.onclick = () => { mode = mode === 'in' ? 'up' : 'in'; draw(); };
-  forgot.onclick = async () => {
-    if (!email.reportValidity()) return;
-    try { await S.store.reset(email.value.trim()); info.textContent = t('resetSent'); } catch (err) { fail(err); }
-  };
   const form = h('form', { class: 'form', onsubmit: async ev => {
     ev.preventDefault();
     submit.disabled = true;
@@ -701,7 +696,7 @@ function authScreen(msg) {
       if (mode === 'in') { await S.store.signIn(email.value.trim(), pw.value); await boot(); }
       else { const r = await S.store.signUp(email.value.trim(), pw.value); if (r.session) await boot(); else { info.textContent = t('checkEmail'); mode = 'in'; draw(); } }
     } catch (err) { fail(err); } finally { submit.disabled = false; }
-  } }, field(t('email'), email), field(t('password'), pw, t('pwRule')), submit, h('div', { class: 'auth-links' }, toggle, forgot), info);
+  } }, field(t('email'), email), field(t('password'), pw, t('pwRule')), submit, h('div', { class: 'auth-links' }, toggle), info);
   draw();
   const langBtn = h('button', { class: 'chip', onclick: () => { setLang(getLang() === 'ar' ? 'en' : 'ar'); try { localStorage.setItem('worksite_lang', getLang()); } catch {} authScreen(); } }, getLang() === 'ar' ? 'English' : 'العربية');
   root.replaceChildren(h('div', { class: 'auth' },
@@ -710,9 +705,11 @@ function authScreen(msg) {
       h('button', { class: 'btn ghost wide', onclick: async () => { try { localStorage.setItem('worksite_mode', 'demo'); } catch {} S.store = createStore(true); await boot(); } }, t('tryDemo')))));
 }
 
-function newPassword() {
+function changePassword() {
+  const cur = h('input', { type: 'password', required: true, maxlength: '128', autocomplete: 'current-password' });
   const pw = h('input', { type: 'password', required: true, minlength: '10', maxlength: '128', autocomplete: 'new-password' });
-  sheet(t('password'), h('form', { class: 'form' }, field(t('password'), pw, t('pwRule'))), async () => { await S.store.updatePassword(pw.value); toast(t('saved')); });
+  sheet(t('changePassword'), h('form', { class: 'form' }, field(t('currentPassword'), cur), field(t('newPassword'), pw, t('pwRule'))),
+    async () => { await S.store.changePassword(cur.value, pw.value); toast(t('saved')); });
 }
 
 async function boot() {
@@ -731,9 +728,8 @@ async function boot() {
 async function start() {
   let mode = null;
   try { mode = localStorage.getItem('worksite_mode'); setLang(localStorage.getItem('worksite_lang') || ((navigator.language || '').startsWith('ar') ? 'ar' : 'en')); } catch {}
-  S.store = createStore(mode === 'demo' || !configured());
+  S.store = createStore(mode === 'demo');
   S.store.onAuth((ev) => {
-    if (ev === 'PASSWORD_RECOVERY') newPassword();
     if (ev === 'SIGNED_OUT' && S.data) { S.data = null; authScreen(t('sessionExpired')); }
   });
   try { await boot(); } catch (err) { fail(err); authScreen(); }

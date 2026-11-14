@@ -1,5 +1,5 @@
-const CACHE = 'worksite-v2';
-const SHELL = ['./', 'index.html', 'styles.css', 'config.js', 'manifest.webmanifest', 'vendor/supabase.js',
+const CACHE = 'worksite-v3';
+const SHELL = ['./', 'index.html', 'styles.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/util.js', 'js/i18n.js', 'icons/icon.svg', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {
@@ -12,7 +12,7 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
   e.respondWith(
     fetch(e.request).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }

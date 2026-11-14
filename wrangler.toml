@@ -1,0 +1,22 @@
+name = "worksite"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[vars]
+ALLOW_SIGNUP = "true"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "worksite"
+database_id = "8c89eb0c-b4f5-4640-85d0-0e20880a629c"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true

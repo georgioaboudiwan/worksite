@@ -1,7 +1,5 @@
-import { SUPABASE_URL, SUPABASE_KEY } from '../config.js';
 import { addDays, iso, startOf } from './util.js';
 
-const TABLES = { workers: 'ws_workers', sites: 'ws_sites', entries: 'ws_entries', payments: 'ws_payments' };
 const FIELDS = {
   workers: ['name', 'phone', 'trade', 'daily_rate', 'active', 'notes'],
   sites: ['name', 'location', 'active'],
@@ -14,54 +12,35 @@ const DEFAULT_BIZ = { name: '', lbp_rate: 89500, hours_per_day: 8, period: 'week
 const pick = (row, keys) => Object.fromEntries(keys.filter(k => k in row).map(k => [k, row[k] === '' ? null : row[k]]));
 const calcAmount = e => e.status === 'worked' ? Math.round(Number(e.days) * Number(e.rate) * 100) / 100 : 0;
 
-export const configured = () => /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(SUPABASE_URL) && SUPABASE_KEY.length > 20;
-
-function cloudStore() {
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' }
-  });
-  const ok = ({ data, error }) => { if (error) throw error; return data; };
-
-  async function all(table, order) {
-    const out = [];
-    for (let from = 0; ; from += 1000) {
-      const rows = ok(await sb.from(table).select('*').order(order).range(from, from + 999));
-      out.push(...rows);
-      if (rows.length < 1000) return out;
-    }
+function apiStore() {
+  async function call(method, path, body) {
+    let res;
+    try {
+      res = await fetch('/api/' + path, {
+        method, credentials: 'same-origin',
+        headers: body !== undefined ? { 'content-type': 'application/json' } : {},
+        body: body !== undefined ? JSON.stringify(body) : undefined
+      });
+    } catch { throw new Error('Network error'); }
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && path !== 'login' && path !== 'password') { authCb?.('SIGNED_OUT'); }
+    if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+    return data;
   }
-
+  let authCb = null;
   return {
     demo: false,
-    onAuth: cb => sb.auth.onAuthStateChange((ev, s) => cb(ev, s)),
-    session: async () => ok(await sb.auth.getSession()).session,
-    signIn: async (email, password) => ok(await sb.auth.signInWithPassword({ email, password })),
-    signUp: async (email, password) => ok(await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } })),
-    reset: async email => ok(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })),
-    updatePassword: async password => ok(await sb.auth.updateUser({ password })),
-    signOut: async () => { await sb.auth.signOut(); },
-    async load() {
-      const [biz, workers, sites, entries, payments] = await Promise.all([
-        sb.from('ws_business').select('*').maybeSingle().then(ok),
-        all('ws_workers', 'name'), all('ws_sites', 'name'), all('ws_entries', 'day'), all('ws_payments', 'paid_on')
-      ]);
-      return { biz: biz || (await this.saveBiz(DEFAULT_BIZ)), workers, sites, entries, payments };
-    },
-    async saveBiz(row) {
-      return ok(await sb.from('ws_business').upsert({ ...pick(row, BIZ_FIELDS), name: row.name ?? '' }, { onConflict: 'owner_id' }).select().single());
-    },
-    async save(kind, row) {
-      const data = pick(row, FIELDS[kind]);
-      const q = row.id ? sb.from(TABLES[kind]).update(data).eq('id', row.id) : sb.from(TABLES[kind]).insert(data);
-      return ok(await q.select().single());
-    },
-    async saveMany(kind, rows) {
-      if (!rows.length) return [];
-      const data = rows.map(r => pick(r, FIELDS[kind]));
-      const opts = kind === 'entries' ? { onConflict: 'worker_id,day' } : undefined;
-      return ok(await sb.from(TABLES[kind]).upsert(data, opts).select());
-    },
-    async remove(kind, id) { ok(await sb.from(TABLES[kind]).delete().eq('id', id)); }
+    onAuth: cb => { authCb = cb; },
+    session: async () => (await call('GET', 'me')).user,
+    signIn: (email, password) => call('POST', 'login', { email, password }),
+    signUp: async (email, password) => ({ session: await call('POST', 'signup', { email, password }) }),
+    changePassword: (current, password) => call('POST', 'password', { current, password }),
+    signOut: async () => { try { await call('POST', 'logout', {}); } catch {} },
+    load: () => call('GET', 'data'),
+    saveBiz: row => call('PUT', 'biz', pick(row, BIZ_FIELDS)),
+    save: (kind, row) => row.id ? call('PUT', `${kind}/${row.id}`, pick(row, FIELDS[kind])) : call('POST', kind, pick(row, FIELDS[kind])),
+    saveMany: (kind, rows) => rows.length ? call('POST', `${kind}/bulk`, rows.map(r => pick(r, FIELDS[kind]))) : Promise.resolve([]),
+    remove: (kind, id) => call('DELETE', `${kind}/${id}`)
   };
 }
 
@@ -136,4 +115,4 @@ function demoStore() {
   };
 }
 
-export const createStore = demo => (demo || !configured() ? demoStore() : cloudStore());
+export const createStore = demo => (demo ? demoStore() : apiStore());
