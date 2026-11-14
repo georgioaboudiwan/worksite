@@ -38,7 +38,6 @@ function apiStore() {
     signOut: async () => { try { await call('POST', 'logout', {}); } catch {} },
     load: () => call('GET', 'data'),
     changelog: () => call('GET', 'changelog'),
-    notifyAdmin: () => call('POST', 'admin/notify', {}),
     saveBiz: row => call('PUT', 'biz', pick(row, BIZ_FIELDS)),
     save: (kind, row) => row.id ? call('PUT', `${kind}/${row.id}`, pick(row, FIELDS[kind])) : call('POST', kind, pick(row, FIELDS[kind])),
     saveMany: (kind, rows) => rows.length ? call('POST', `${kind}/bulk`, rows.map(r => pick(r, FIELDS[kind]))) : Promise.resolve([]),

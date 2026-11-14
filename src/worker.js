@@ -175,8 +175,6 @@ async function notifyLatest(env) {
   if (!done) await sendRelease(env, rel);
 }
 
-const isAdmin = (env, user) => !!env.ADMIN_EMAIL && user.email.toLowerCase() === env.ADMIN_EMAIL.toLowerCase();
-
 async function api(req, env, url) {
   const path = url.pathname.replace(/\/+$/, '');
   const method = req.method;
@@ -225,7 +223,7 @@ async function api(req, env, url) {
   }
 
   const user = await currentUser(req, env);
-  if (path === '/api/me' && method === 'GET') return json({ user: user && { ...user, admin: isAdmin(env, user) } });
+  if (path === '/api/me' && method === 'GET') return json({ user });
   if (path === '/api/changelog' && method === 'GET') return json(CHANGELOG);
   if (!user) throw new HttpError(401, 'Not signed in');
   const uid = user.id;
@@ -242,13 +240,6 @@ async function api(req, env, url) {
       env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(uid)
     ]);
     return json({ ok: true }, 200, { 'set-cookie': await createSession(env, uid) });
-  }
-
-  if (path === '/api/admin/notify' && method === 'POST') {
-    if (!isAdmin(env, user)) throw new HttpError(403, 'Admins only');
-    await throttle(env, `notify:${uid}`, 5, 3600);
-    await sendRelease(env, CHANGELOG[0]);
-    return json({ ok: true, version: CHANGELOG[0].version });
   }
 
   if (path === '/api/data' && method === 'GET') {
