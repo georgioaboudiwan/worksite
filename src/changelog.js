@@ -1,5 +1,15 @@
 export const CHANGELOG = [
   {
+    version: '1.2.0',
+    date: '2026-11-15',
+    items: [
+      { en: 'Two app styles in Settings: Simple (big text and buttons, opens on Today) and Advanced (compact, opens on the Summary, week planner by default, dark mode follows the phone).', ar: 'صار في شكلين للتطبيق بالإعدادات: سهل (خط وأزرار كبيرة) ومتقدّم (مضغوط).' },
+      { en: 'Each phone keeps its own style, so the same account can be Simple on one phone and Advanced on another.', ar: 'كل تلفون بيحفظ الشكل تبعو.' },
+      { en: 'Release emails now go out only automatically after an update. Nobody can send them from the app.', ar: 'إيميلات التحديثات بتنبعت لحالها بس.' },
+      { en: 'Added 12 workers to the main account, with Arabic names.', ar: 'انضافوا ١٢ عامل بأسماء عربية.' }
+    ]
+  },
+  {
     version: '1.1.0',
     date: '2026-11-14',
     items: [
