@@ -28,7 +28,7 @@ const STR = {
     advance: 'Paid ahead', credit: 'credit', weekdays: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
     months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
     sessionExpired: 'Session expired. Please sign in again.', offline: 'You are offline',
-    copied: 'Copied {n} plans', marked: 'Marked {n} as worked', install: 'Install app', textSize: 'Text size', tsNormal: 'Normal', tsLarge: 'Large', tsXLarge: 'Extra large', weekView: 'Week', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
+    copied: 'Copied {n} plans', marked: 'Marked {n} as worked', install: 'Install app', textSize: 'Text size', tsNormal: 'Normal', tsLarge: 'Large', tsXLarge: 'Extra large', weekView: 'Week', whatsNew: "What's new", version: 'Version', emailAdmin: 'Email updates to admin', emailSent: 'Email sent to admin', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
   },
   ar: {
     app: 'ورشتي', tagline: 'العمّال، الأيام والدفعات — بمكان واحد',
@@ -59,7 +59,7 @@ const STR = {
     advance: 'مدفوع سلفاً', credit: 'سلفة', weekdays: ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'],
     months: ['كانون٢','شباط','آذار','نيسان','أيار','حزيران','تموز','آب','أيلول','تشرين١','تشرين٢','كانون١'],
     sessionExpired: 'انتهت الجلسة. ادخل من جديد.', offline: 'لا يوجد اتصال',
-    copied: 'تم نسخ {n}', marked: 'تم تسجيل {n}', install: 'ثبّت التطبيق', textSize: 'حجم الخط', tsNormal: 'عادي', tsLarge: 'كبير', tsXLarge: 'كبير جداً', weekView: 'الأسبوع', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
+    copied: 'تم نسخ {n}', marked: 'تم تسجيل {n}', install: 'ثبّت التطبيق', textSize: 'حجم الخط', tsNormal: 'عادي', tsLarge: 'كبير', tsXLarge: 'كبير جداً', weekView: 'الأسبوع', whatsNew: 'شو الجديد', version: 'نسخة', emailAdmin: 'ابعت التحديثات للمسؤول', emailSent: 'انبعت الإيميل للمسؤول', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
   }
 };
 

@@ -326,3 +326,4 @@ h1 { font-size: 24px; } h2 { font-size: 21px; } h3 { font-size: 18px; }
 .dot { width: 38px; height: 38px; font-size: 15px; border-width: 3px; }
 .dot.worked { color: #fff; }
 .fab .ico { width: 26px; height: 26px; }
+.news { margin: 0 0 14px; padding-inline-start: 22px; display: flex; flex-direction: column; gap: 8px; font-size: 17px; }

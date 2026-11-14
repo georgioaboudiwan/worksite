@@ -3,7 +3,7 @@ import { createStore } from './store.js';
 import { h, iso, today, toDate, addDays, range, shift, daysIn, round2, csv, startOf } from './util.js';
 
 const root = document.getElementById('app');
-const S = { store: null, data: null, view: 'planner', period: 'week', anchor: today(), workerId: null, q: '' };
+const S = { store: null, data: null, user: null, changelog: [], view: 'planner', period: 'week', anchor: today(), workerId: null, q: '' };
 
 const nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 const nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -591,7 +591,16 @@ function viewSettings() {
     h('button', { class: 'btn ghost', onclick: exportCsv }, t('exportCsv')),
     !S.store.demo && h('button', { class: 'btn ghost', onclick: changePassword }, t('changePassword')),
     h('button', { class: 'btn danger ghost', onclick: async () => { await S.store.signOut(); try { localStorage.removeItem('worksite_mode'); } catch {} location.reload(); } }, t('signOut')));
-  return h('div', { class: 'view narrow' }, form, sites, acct);
+  const lk = getLang() === 'ar' ? 'ar' : 'en';
+  const news = S.changelog.length > 0 && h('div', { class: 'card' },
+    h('div', { class: 'card-h' }, h('h3', null, t('whatsNew')), h('span', { class: 'muted' }, `${t('version')} ${S.changelog[0].version}`)),
+    h('ul', { class: 'news' }, S.changelog[0].items.map(i => h('li', null, i[lk] || i.en))),
+    S.user?.admin && !S.store.demo && h('button', { class: 'btn ghost wide', onclick: async ev => {
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      try { await S.store.notifyAdmin(); toast(t('emailSent')); } catch (err) { fail(err); } finally { btn.disabled = false; }
+    } }, t('emailAdmin')));
+  return h('div', { class: 'view narrow' }, form, news, sites, acct);
 }
 
 function editSite(s = {}) {
@@ -724,7 +733,9 @@ function changePassword() {
 async function boot() {
   const s = await S.store.session();
   if (!s) return authScreen();
+  S.user = s;
   S.data = await S.store.load();
+  S.store.changelog().then(c => { S.changelog = Array.isArray(c) ? c : []; if (S.view === 'settings') render(); }).catch(() => {});
   ['entries', 'payments', 'workers'].forEach(k => S.data[k].forEach(r => {
     ['days', 'hours', 'rate', 'amount', 'daily_rate', 'lbp_amount', 'lbp_rate'].forEach(f => { if (r[f] != null) r[f] = Number(r[f]); });
   }));

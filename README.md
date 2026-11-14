@@ -8,6 +8,10 @@ Runs on Cloudflare: a Worker serves the app (`public/`) and the API (`src/worker
 Every push to `main` deploys through GitHub Actions. Repo secrets needed:
 - `CLOUDFLARE_API_TOKEN` — token with Workers Scripts: Edit and D1: Edit
 - `CLOUDFLARE_ACCOUNT_ID`
+- `RESEND_API_KEY` — sends the release email to `ADMIN_EMAIL`
+
+## Release emails
+Add the new version at the top of `src/changelog.js`. After the deploy, the Worker emails the admin within 10 minutes (once per version). The admin can resend from Settings.
 
 ## Local
 `npm install`, `npx wrangler d1 migrations apply worksite --local`, `npm run dev`.

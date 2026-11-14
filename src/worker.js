@@ -1,3 +1,5 @@
+import { CHANGELOG } from './changelog.js';
+
 const COOKIE = '__Host-ws_session';
 const SESSION_DAYS = 30;
 const PBKDF2_ITER = 100000;
@@ -134,6 +136,47 @@ async function insertRow(env, uid, kind, data, upsertDay) {
   return env.DB.prepare(sql + ' RETURNING *').bind(...vals);
 }
 
+const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function releaseEmail(rel, appUrl) {
+  const items = rel.items.map(i => i.en);
+  const text = `Worksite ${rel.version} is live (${rel.date}).\n\nWhat's new:\n${items.map(i => `- ${i}`).join('\n')}\n\nOpen the app: ${appUrl}\n`;
+  const html = `<div style="font-family:system-ui,Arial,sans-serif;font-size:16px;line-height:1.5;color:#111">
+<h2 style="margin:0 0 4px">Worksite ${esc(rel.version)} is live</h2>
+<p style="margin:0 0 16px;color:#555">${esc(rel.date)}</p>
+<p style="margin:0 0 8px"><b>What's new</b></p>
+<ul style="margin:0 0 16px;padding-left:20px">${items.map(i => `<li style="margin-bottom:6px">${esc(i)}</li>`).join('')}</ul>
+<p><a href="${esc(appUrl)}" style="display:inline-block;background:#e8890c;color:#1a1000;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:700">Open Worksite</a></p>
+</div>`;
+  return { subject: `Worksite ${rel.version} – what's new`, text, html };
+}
+
+async function sendRelease(env, rel) {
+  if (!env.RESEND_API_KEY || !env.ADMIN_EMAIL) throw new HttpError(503, 'Email is not set up');
+  const mail = releaseEmail(rel, env.APP_URL || '');
+  let res;
+  try {
+    res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ from: env.MAIL_FROM || 'Worksite <onboarding@resend.dev>', to: [env.ADMIN_EMAIL], subject: mail.subject, text: mail.text, html: mail.html })
+    });
+  } catch {
+    throw new HttpError(502, 'Email could not be sent');
+  }
+  if (!res.ok) { console.error('resend', res.status, await res.text()); throw new HttpError(502, 'Email could not be sent'); }
+  await env.DB.prepare("INSERT INTO release_notices (version, sent_at) VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(version) DO UPDATE SET sent_at = excluded.sent_at").bind(rel.version).run();
+}
+
+async function notifyLatest(env) {
+  const rel = CHANGELOG[0];
+  if (!rel || !env.RESEND_API_KEY || !env.ADMIN_EMAIL) return;
+  const done = await env.DB.prepare('SELECT 1 FROM release_notices WHERE version = ?').bind(rel.version).first();
+  if (!done) await sendRelease(env, rel);
+}
+
+const isAdmin = (env, user) => !!env.ADMIN_EMAIL && user.email.toLowerCase() === env.ADMIN_EMAIL.toLowerCase();
+
 async function api(req, env, url) {
   const path = url.pathname.replace(/\/+$/, '');
   const method = req.method;
@@ -182,7 +225,8 @@ async function api(req, env, url) {
   }
 
   const user = await currentUser(req, env);
-  if (path === '/api/me' && method === 'GET') return json({ user });
+  if (path === '/api/me' && method === 'GET') return json({ user: user && { ...user, admin: isAdmin(env, user) } });
+  if (path === '/api/changelog' && method === 'GET') return json(CHANGELOG);
   if (!user) throw new HttpError(401, 'Not signed in');
   const uid = user.id;
 
@@ -198,6 +242,13 @@ async function api(req, env, url) {
       env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(uid)
     ]);
     return json({ ok: true }, 200, { 'set-cookie': await createSession(env, uid) });
+  }
+
+  if (path === '/api/admin/notify' && method === 'POST') {
+    if (!isAdmin(env, user)) throw new HttpError(403, 'Admins only');
+    await throttle(env, `notify:${uid}`, 5, 3600);
+    await sendRelease(env, CHANGELOG[0]);
+    return json({ ok: true, version: CHANGELOG[0].version });
   }
 
   if (path === '/api/data' && method === 'GET') {
@@ -272,6 +323,9 @@ async function api(req, env, url) {
 }
 
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(notifyLatest(env).catch(err => console.error('notify', err?.message)));
+  },
   async fetch(req, env) {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
