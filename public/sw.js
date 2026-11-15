@@ -1,4 +1,4 @@
-const CACHE = 'worksite-v20';
+const CACHE = 'worksite-v21';
 const SHELL = ['./', 'index.html', 'styles.css', 'pdoc.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/util.js', 'js/i18n.js', 'js/docs.js', 'icons/icon.svg', 'icons/icon-192.png'];
 
@@ -25,7 +25,7 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch { data = { body: e.data && e.data.text() }; }
-  e.waitUntil(self.registration.showNotification(data.title || 'Worksite', {
+  e.waitUntil(self.registration.showNotification(data.title || 'Yawmiyyeh', {
     body: data.body || '', icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', dir: 'auto', lang: 'ar', data: { url: data.url || '/' }
   }));
 });

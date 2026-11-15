@@ -1,1 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#14181f"/><rect x="40" y="40" width="432" height="432" rx="92" fill="#f5a524"/><g transform="translate(96 88) scale(13.3)" fill="#1a1305"><path d="M12 3a8 8 0 0 0-8 8v3H2v3h20v-3h-2v-3a8 8 0 0 0-6-7.7V7h-2V3.1A8 8 0 0 0 12 3zm-2 .3V7H8V4.4a8 8 0 0 1 2-1.1z"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#26497a"/>
+      <stop offset="1" stop-color="#0c182b"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbbf3c"/>
+      <stop offset="1" stop-color="#f08a12"/>
+    </linearGradient>
+    <clipPath id="card"><rect x="104" y="128" width="304" height="272" rx="44"/></clipPath>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="104" y="128" width="304" height="272" rx="44" fill="#ffffff"/>
+  <g clip-path="url(#card)">
+    <rect x="104" y="128" width="304" height="76" fill="url(#gold)"/>
+    <g fill="#d9e1ec">
+      <rect x="132" y="228" width="76" height="56" rx="12"/>
+      <rect x="218" y="228" width="76" height="56" rx="12"/>
+      <rect x="304" y="228" width="76" height="56" rx="12"/>
+      <rect x="96" y="294" width="69" height="56" rx="12"/>
+      <rect x="175" y="294" width="76" height="56" rx="12"/>
+      <rect x="261" y="294" width="76" height="56" rx="12"/>
+    </g>
+  </g>
+  <rect x="170" y="96" width="30" height="76" rx="15" fill="#0c182b"/>
+  <rect x="312" y="96" width="30" height="76" rx="15" fill="#0c182b"/>
+  <circle cx="364" cy="364" r="72" fill="#0c182b"/>
+  <circle cx="364" cy="364" r="60" fill="url(#gold)"/>
+  <path d="M334 366l20 20 42-44" fill="none" stroke="#0c182b" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

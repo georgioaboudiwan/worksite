@@ -48,7 +48,7 @@ export function printDoc(content, title) {
   if (!host) { host = h('div', { id: 'print-root' }); document.body.append(host); }
   host.replaceChildren(renderDoc(content));
   const prev = document.title;
-  document.title = String(title || 'Worksite').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Worksite';
+  document.title = String(title || 'Yawmiyyeh').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Yawmiyyeh';
   const done = () => { document.title = prev; window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   setTimeout(() => window.print(), 50);

@@ -26,7 +26,7 @@ export function cleanPdf(body) {
     return out;
   });
   return {
-    title: str(body?.title, 160).trim() || 'Worksite',
+    title: str(body?.title, 160).trim() || 'Yawmiyyeh',
     content: { header: { company: str(hd.company, 160), subtitle: str(hd.subtitle, 240), phones: str(hd.phones, 120), website: str(hd.website, 120) }, meta: str(c.meta, 200), sections }
   };
 }

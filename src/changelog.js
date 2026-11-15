@@ -1,5 +1,15 @@
 export const CHANGELOG = [
   {
+    version: '1.9.0',
+    date: '2026-11-16',
+    items: [
+      { en: 'New name and logo: Yawmiyyeh (يوميّة).', ar: 'اسم وشعار جديدان: يوميّة (Yawmiyyeh).' },
+      { en: 'Refreshed design: summary card on the home screen, softer cards, clearer colours and a refined dark mode.', ar: 'تصميم محدّث: بطاقة ملخّص في الرئيسية، بطاقات أوضح، ألوان أنظف ووضع داكن محسّن.' },
+      { en: 'Planner day view: week bar, day summary, one tap to mark everyone present, and larger status buttons.', ar: 'عرض اليوم في التخطيط: شريط الأسبوع، ملخّص اليوم، تسجيل حضور الجميع بضغطة واحدة، وأزرار حالة أكبر.' },
+      { en: 'The add button now stays on the right side in both languages.', ar: 'زر الإضافة أصبح على الجهة اليمنى في اللغتين.' }
+    ]
+  },
+  {
     version: '1.8.0',
     date: '2026-11-15',
     items: [

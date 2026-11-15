@@ -627,3 +627,5 @@ td.cell.now { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 .av.xs { width: 26px; height: 26px; border-radius: 9px; font-size: 12px; }
 @media (max-width: 760px) { .plan .sticky .av.xs { display: none; } }
 .plan tbody th { color: var(--text); font-size: 14px; }
+img.logo { display: block; padding: 0; background: none; object-fit: cover; box-shadow: 0 8px 18px -8px rgb(12 24 43 / .55); border-radius: 26%; }
+.splash-logo { display: block; background: none; border-radius: 26%; box-shadow: 0 22px 44px -14px rgb(12 24 43 / .6); }

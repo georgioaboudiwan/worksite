@@ -1,6 +1,6 @@
 const STR = {
   en: {
-    app: 'Worksite', tagline: 'Crew, days and pay — in one place',
+    app: 'Yawmiyyeh', tagline: 'Crew, days and pay — in one place',
     dashboard: 'Dashboard', planner: 'Planner', workers: 'Workers', payments: 'Payments', settings: 'Settings',
     day: 'Day', week: 'Week', month: 'Month', today: 'Today',
     earned: 'Earned', paid: 'Paid', left: 'Left to pay', owed: 'Total owed', owedHint: 'All time, all workers',
@@ -55,7 +55,7 @@ const STR = {
     k_entries: 'Attendance', k_workers: 'Workers', k_sites: 'Projects', k_payments: 'Payments', k_adjustments: 'Bonuses and deductions', k_site_txns: 'Project transactions', k_business: 'Settings', k_members: 'Team'
   },
   ar: {
-    app: 'ورشتي', tagline: 'العمّال والأيام والدفعات في مكان واحد',
+    app: 'يوميّة', tagline: 'العمّال والأيام والدفعات في مكان واحد',
     dashboard: 'الرئيسية', planner: 'التخطيط', workers: 'العمّال', payments: 'الدفعات', settings: 'الإعدادات',
     day: 'يوم', week: 'أسبوع', month: 'شهر', today: 'اليوم',
     earned: 'المستحق', paid: 'المدفوع', left: 'المتبقي', owed: 'إجمالي المتبقي', owedHint: 'لجميع العمّال منذ البداية',

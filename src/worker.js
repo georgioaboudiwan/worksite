@@ -260,7 +260,7 @@ async function sendMail(env, to, subject, text, html, attachments) {
     res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: env.MAIL_FROM || 'Worksite <onboarding@resend.dev>', to: [to], subject, text, html, attachments })
+      body: JSON.stringify({ from: env.MAIL_FROM || 'Yawmiyyeh <onboarding@resend.dev>', to: [to], subject, text, html, attachments })
     });
   } catch {
     throw new HttpError(502, 'Email could not be sent');
@@ -273,13 +273,13 @@ const mailWrap = body => `<div style="font-family:system-ui,Arial,sans-serif;fon
 async function sendRelease(env, rel) {
   const items = rel.items.map(i => i.en);
   const url = env.APP_URL || '';
-  const text = `Worksite ${rel.version} is live (${rel.date}).\n\nWhat's new:\n${items.map(i => `- ${i}`).join('\n')}\n\nOpen the app: ${url}\n`;
-  const html = mailWrap(`<h2 style="margin:0 0 4px">Worksite ${esc(rel.version)} is live</h2>
+  const text = `Yawmiyyeh ${rel.version} is live (${rel.date}).\n\nWhat's new:\n${items.map(i => `- ${i}`).join('\n')}\n\nOpen the app: ${url}\n`;
+  const html = mailWrap(`<h2 style="margin:0 0 4px">Yawmiyyeh ${esc(rel.version)} is live</h2>
 <p style="margin:0 0 16px;color:#555">${esc(rel.date)}</p>
 <p style="margin:0 0 8px"><b>What's new</b></p>
 <ul style="margin:0 0 16px;padding-left:20px">${items.map(i => `<li style="margin-bottom:6px">${esc(i)}</li>`).join('')}</ul>
 <p><a href="${esc(url)}" style="display:inline-block;background:#e8890c;color:#1a1000;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:700">Open Worksite</a></p>`);
-  await sendMail(env, env.ADMIN_EMAIL, `Worksite ${rel.version} – what's new`, text, html);
+  await sendMail(env, env.ADMIN_EMAIL, `Yawmiyyeh ${rel.version} – what's new`, text, html);
   await env.DB.prepare("INSERT INTO release_notices (version, sent_at) VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(version) DO UPDATE SET sent_at = excluded.sent_at").bind(rel.version).run();
 }
 
@@ -411,13 +411,13 @@ async function sendWeekly(env, owner, email, today) {
   const body = csvRows.slice(1).sort((a, b) => String(a[1]).localeCompare(String(b[1])));
 
   const table = rows.map(r => `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee">${esc(r.name)}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${r.weekDays}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${money(r.weekEarned)}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${money(r.balance)}</td></tr>`).join('');
-  const html = mailWrap(`<h2 style="margin:0 0 4px">Payday – ${esc(d.biz?.name || 'Worksite')}</h2>
+  const html = mailWrap(`<h2 style="margin:0 0 4px">Payday – ${esc(d.biz?.name || 'Yawmiyyeh')}</h2>
 <p style="margin:0 0 16px;color:#555">${esc(from)} → ${esc(today)}</p>
 <p style="margin:0 0 4px">Labour cost this week: <b>${money(weekCost)}</b></p>
 <p style="margin:0 0 16px">Total you still owe: <b>${money(owed)}</b></p>
 ${rows.length ? `<table style="border-collapse:collapse;font-size:15px"><tr><th style="text-align:left;padding:6px 10px">Worker</th><th style="padding:6px 10px">Days</th><th style="padding:6px 10px">This week</th><th style="padding:6px 10px">Balance</th></tr>${table}</table>` : '<p>No activity this week.</p>'}
 <p style="margin:16px 0 0;color:#555">A full backup of your data is attached (CSV).</p>`);
-  const text = `Payday – ${d.biz?.name || 'Worksite'} (${from} → ${today})\nLabour cost this week: ${money(weekCost)}\nTotal you still owe: ${money(owed)}\n\n${rows.map(r => `${r.name}: ${r.weekDays} days, ${money(r.weekEarned)} this week, balance ${money(r.balance)}`).join('\n')}\n\nFull backup attached (CSV).`;
+  const text = `Payday – ${d.biz?.name || 'Yawmiyyeh'} (${from} → ${today})\nLabour cost this week: ${money(weekCost)}\nTotal you still owe: ${money(owed)}\n\n${rows.map(r => `${r.name}: ${r.weekDays} days, ${money(r.weekEarned)} this week, balance ${money(r.balance)}`).join('\n')}\n\nFull backup attached (CSV).`;
   await sendMail(env, email, `Payday ${today} – you owe ${money(owed)}`, text, html, [{ filename: `worksite-backup-${today}.csv`, content: b64(csvOf([csvRows[0], ...body])) }]);
   await env.DB.prepare("INSERT INTO weekly_reports (owner_id, week, sent_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))").bind(owner, today).run();
 }
@@ -562,7 +562,7 @@ async function api(req, env, url, ctx) {
 
   if (path === '/api/push/test' && method === 'POST') {
     await throttle(env, `pushtest:${user.id}`, 5, 3600);
-    await sendPush(env, [user.id], { title: 'Worksite', body: '✓', url: '/' });
+    await sendPush(env, [user.id], { title: 'Yawmiyyeh', body: '✓', url: '/' });
     return json({ ok: true });
   }
 
@@ -574,7 +574,7 @@ async function api(req, env, url, ctx) {
     let pdf;
     try { pdf = await renderPdf(env, doc); }
     catch (err) { console.error('pdf', err?.message); throw new HttpError(503, /429|limit/i.test(String(err?.message)) ? 'PDF limit reached for today' : 'PDF could not be created'); }
-    const name = doc.title.replace(/[\\/:*?"<>|\r\n]+/g, ' ').trim() || 'Worksite';
+    const name = doc.title.replace(/[\\/:*?"<>|\r\n]+/g, ' ').trim() || 'Yawmiyyeh';
     return new Response(pdf, { headers: {
       'content-type': 'application/pdf', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
       'content-disposition': `attachment; filename="document.pdf"; filename*=UTF-8''${encodeURIComponent(name)}.pdf`

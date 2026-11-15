@@ -1061,7 +1061,7 @@ async function exportPdf(content, title) {
     fail(err);
     return printDoc(content, title);
   }
-  const name = `${String(title || 'Worksite').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Worksite'}.pdf`;
+  const name = `${String(title || 'Yawmiyyeh').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Yawmiyyeh'}.pdf`;
   const file = new File([blob], name, { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const canShare = !!navigator.canShare?.({ files: [file] });
@@ -1595,12 +1595,12 @@ function render() {
   root.replaceChildren(
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
-        h('div', { class: 'brand' }, h('span', { class: 'logo' }, icon('helmet')), h('div', null, h('b', null, t('app')), h('small', null, S.data.biz.name || ''))),
+        h('div', { class: 'brand' }, h('img', { class: 'logo', src: 'icons/icon.svg', alt: '' }), h('div', null, h('b', null, t('app')), h('small', null, S.data.biz.name || ''))),
         h('nav', null, [...tabs(), ...(isForeman() ? [] : ['docs']), 'settings'].map(navBtn)),
         S.store.demo && h('p', { class: 'banner sm' }, t('demo'))),
       h('main', null,
         h('header', { class: 'top' },
-          h('span', { class: 'logo sm' }, icon('helmet')),
+          h('img', { class: 'logo sm', src: 'icons/icon.svg', alt: '' }),
           h('div', { class: 'top-t' }, h('h1', null, title), h('small', { class: 'muted' }, S.data.biz.name || t('app'))),
           syncChip(),
           !isForeman() && h('button', { class: 'icon-btn gear' + (active === 'docs' ? ' on' : ''), 'aria-label': t('docs'), onclick: () => go('docs') }, icon('docs')),
@@ -1731,7 +1731,7 @@ function authScreen(msg) {
   draw();
   const langBtn = h('button', { class: 'chip', onclick: () => { setLang(getLang() === 'ar' ? 'en' : 'ar'); try { localStorage.setItem('worksite_lang', getLang()); } catch {} authScreen(); } }, getLang() === 'ar' ? 'English' : 'العربية');
   root.replaceChildren(h('div', { class: 'auth' },
-    h('div', { class: 'auth-card' }, h('div', { class: 'auth-top' }, h('span', { class: 'logo lg' }, icon('helmet')), langBtn),
+    h('div', { class: 'auth-card' }, h('div', { class: 'auth-top' }, h('img', { class: 'logo lg', src: 'icons/icon.svg', alt: '' }), langBtn),
       h('h1', null, t('app')), h('p', { class: 'muted' }, t('tagline')), form,
       !invited && h('button', { class: 'btn ghost wide', onclick: async () => { try { localStorage.setItem('worksite_mode', 'demo'); } catch {} S.store = createStore(true); await boot(); } }, t('tryDemo')))));
 }
@@ -1764,7 +1764,7 @@ function bootFail() {
   document.documentElement.classList.remove('booting');
   drawNav(null);
   root.replaceChildren(h('div', { class: 'auth' }, h('div', { class: 'auth-card' },
-    h('span', { class: 'logo lg' }, icon('helmet')),
+    h('img', { class: 'logo lg', src: 'icons/icon.svg', alt: '' }),
     h('h1', null, t('app')),
     h('p', { class: 'muted' }, t('loadFailed')),
     h('button', { class: 'btn wide', onclick: hardReload }, t('retry')))));
