@@ -8,13 +8,24 @@ const FIELDS = {
   adjustments: ['worker_id', 'day', 'kind', 'amount', 'hours', 'note'],
   site_txns: ['site_id', 'day', 'kind', 'category', 'amount', 'currency', 'lbp_amount', 'lbp_rate', 'note']
 };
-const BIZ_FIELDS = ['name', 'lbp_rate', 'hours_per_day', 'period', 'week_start', 'lang', 'payday', 'weekly_email', 'overtime_multiplier'];
+const BIZ_FIELDS = ['name', 'lbp_rate', 'hours_per_day', 'period', 'week_start', 'lang', 'payday', 'weekly_email', 'overtime_multiplier', 'phone', 'website'];
 const DEFAULT_BIZ = { name: '', lbp_rate: 89500, hours_per_day: 8, period: 'week', week_start: 1, lang: 'ar', payday: 6, weekly_email: false, overtime_multiplier: 1.5 };
 
 const pick = (row, keys) => Object.fromEntries(keys.filter(k => k in row).map(k => [k, row[k] === '' ? null : row[k]]));
 const calcAmount = e => e.status === 'worked' ? Math.round(Number(e.days) * Number(e.rate) * 100) / 100 : 0;
 
+const CACHE_KEY = 'worksite_cache';
+const QUEUE_KEY = 'worksite_queue';
+const readJSON = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const clearLocal = () => { try { localStorage.removeItem(CACHE_KEY); localStorage.removeItem(QUEUE_KEY); } catch {} };
+
 function apiStore() {
+  let authCb = null;
+  let queue = readJSON(QUEUE_KEY) || [];
+  let flushing = false;
+  const persist = () => writeJSON(QUEUE_KEY, queue);
+
   async function call(method, path, body) {
     let res;
     try {
@@ -23,30 +34,84 @@ function apiStore() {
         headers: body !== undefined ? { 'content-type': 'application/json' } : {},
         body: body !== undefined ? JSON.stringify(body) : undefined
       });
-    } catch { throw new Error('Network error'); }
+    } catch {
+      const err = new Error('Network error');
+      err.net = true;
+      throw err;
+    }
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401 && path !== 'login' && path !== 'password') { authCb?.('SIGNED_OUT'); }
-    if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+    if (res.status === 401 && path !== 'login' && path !== 'password') authCb?.('SIGNED_OUT');
+    if (!res.ok) { const err = new Error(data.error || `Error ${res.status}`); err.status = res.status; throw err; }
     return data;
   }
-  let authCb = null;
+
+  async function write(method, path, body, local) {
+    if (queue.length) { queue.push({ method, path, body }); persist(); return local; }
+    try { return await call(method, path, body); }
+    catch (err) { if (!err.net) throw err; queue.push({ method, path, body }); persist(); return local; }
+  }
+
+  const localRow = (kind, row) => {
+    const r = { ...row };
+    if (kind === 'entries' && r.rate != null) r.amount = r.status === 'worked' ? Math.round(Number(r.days) * Number(r.rate) * 100) / 100 : 0;
+    return r;
+  };
+
   return {
     demo: false,
     onAuth: cb => { authCb = cb; },
-    session: async () => (await call('GET', 'me')).user,
+    async session() {
+      try { return (await call('GET', 'me')).user; }
+      catch (err) { if (err.net && readJSON(CACHE_KEY)) return { offline: true }; throw err; }
+    },
     signIn: (email, password) => call('POST', 'login', { email, password }),
     signUp: async (email, password, invite) => ({ session: await call('POST', 'signup', { email, password, invite: invite || undefined }) }),
     changePassword: (current, password) => call('POST', 'password', { current, password }),
-    signOut: async () => { try { await call('POST', 'logout', {}); } catch {} },
-    load: () => call('GET', 'data'),
+    signOut: async () => { clearLocal(); queue = []; try { await call('POST', 'logout', {}); } catch {} },
+    async load() {
+      try { const d = await call('GET', 'data'); writeJSON(CACHE_KEY, d); return d; }
+      catch (err) { const c = err.net && readJSON(CACHE_KEY); if (c) return { ...c, offline: true }; throw err; }
+    },
+    snapshot: data => writeJSON(CACHE_KEY, data),
+    pending: () => queue.length,
+    async flush() {
+      if (flushing || !queue.length) return { done: 0, failed: 0 };
+      flushing = true;
+      let done = 0, failed = 0;
+      try {
+        while (queue.length) {
+          const op = queue[0];
+          try { await call(op.method, op.path, op.body); done++; }
+          catch (err) { if (err.net) break; failed++; }
+          queue.shift();
+          persist();
+        }
+      } finally { flushing = false; }
+      return { done, failed };
+    },
     changelog: () => call('GET', 'changelog'),
     invite: () => call('POST', 'invites', {}),
     members: () => call('GET', 'members'),
     removeMember: id => call('DELETE', `members/${id}`),
     saveBiz: row => call('PUT', 'biz', pick(row, BIZ_FIELDS)),
-    save: (kind, row) => row.id ? call('PUT', `${kind}/${row.id}`, pick(row, FIELDS[kind])) : call('POST', kind, pick(row, FIELDS[kind])),
-    saveMany: (kind, rows) => rows.length ? call('POST', `${kind}/bulk`, rows.map(r => pick(r, FIELDS[kind]))) : Promise.resolve([]),
-    remove: (kind, id) => call('DELETE', `${kind}/${id}`)
+    save(kind, row) {
+      const body = pick(row, FIELDS[kind]);
+      if (row.id) return write('PUT', `${kind}/${row.id}`, body, localRow(kind, { ...row, ...body }));
+      body.id = crypto.randomUUID();
+      return write('POST', kind, body, localRow(kind, { ...row, ...body }));
+    },
+    saveMany(kind, rows) {
+      if (!rows.length) return Promise.resolve([]);
+      const body = rows.map(r => ({ ...pick(r, FIELDS[kind]), id: r.id || crypto.randomUUID() }));
+      return write('POST', `${kind}/bulk`, body, body.map((b, i) => localRow(kind, { ...rows[i], ...b })));
+    },
+    remove: (kind, id) => write('DELETE', `${kind}/${id}`, undefined, { ok: true }),
+    saveDoc: doc => doc.id ? call('PUT', `docs/${doc.id}`, { title: doc.title, content: doc.content }) : call('POST', 'docs', { title: doc.title, content: doc.content }),
+    removeDoc: id => call('DELETE', `docs/${id}`),
+    pushKey: () => call('GET', 'push/key'),
+    pushSubscribe: sub => call('POST', 'push/subscribe', sub),
+    pushUnsubscribe: endpoint => call('POST', 'push/unsubscribe', { endpoint }),
+    pushTest: () => call('POST', 'push/test', {})
   };
 }
 
@@ -57,7 +122,7 @@ function demoStore() {
   const uid = () => crypto.randomUUID();
   let db = read() || seed();
   db.biz = { ...DEFAULT_BIZ, ...db.biz };
-  ['adjustments', 'site_txns'].forEach(k => { db[k] = db[k] || []; });
+  ['adjustments', 'site_txns', 'docs'].forEach(k => { db[k] = db[k] || []; });
   write(db);
 
   function seed() {
@@ -111,6 +176,18 @@ function demoStore() {
     session: async () => ({ user: { email: 'demo@worksite' } }),
     signOut: async () => { try { localStorage.removeItem(KEY); localStorage.removeItem('worksite_mode'); } catch {} },
     async load() { return { role: 'owner', ...clone(db) }; },
+    snapshot: () => {},
+    pending: () => 0,
+    flush: async () => ({ done: 0, failed: 0 }),
+    async saveDoc(doc) {
+      const now = new Date().toISOString();
+      let d = doc.id && db.docs.find(x => x.id === doc.id);
+      if (d) Object.assign(d, { title: doc.title, content: doc.content, updated_at: now });
+      else { d = { id: uid(), title: doc.title, content: doc.content, created_at: now, updated_at: now }; db.docs.unshift(d); }
+      write(db);
+      return clone(d);
+    },
+    async removeDoc(id) { db.docs = db.docs.filter(d => d.id !== id); write(db); },
     changelog: () => fetch('/api/changelog').then(r => r.ok ? r.json() : []).catch(() => []),
     async saveBiz(row) { db.biz = { ...db.biz, ...pick(row, BIZ_FIELDS) }; write(db); return clone(db.biz); },
     async save(kind, row) { const r = upsertLocal(kind, row); write(db); return r; },

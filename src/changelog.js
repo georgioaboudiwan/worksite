@@ -1,5 +1,17 @@
 export const CHANGELOG = [
   {
+    version: '1.6.0',
+    date: '2026-11-15',
+    items: [
+      { en: 'Documents: create price sheets, terms and quotes in your company style, edit them any time and export to PDF.', ar: 'المستندات: اعمل لوائح أسعار وشروط وعروض بستايل الشركة، عدّلها ساعة ما بدّك وصدّرها PDF.' },
+      { en: 'PDF report for each project: summary, workers and labour cost, expenses and client payments for the selected period.', ar: 'تقرير PDF لكل مشروع: الملخّص، العمّال، المصاريف ودفعات الزبون.' },
+      { en: 'Works offline: changes made without signal are saved on the phone and sync automatically when back online.', ar: 'بيشتغل بلا إنترنت: التعديلات بتنحفظ عالتلفون وبتتزامن لحالها.' },
+      { en: 'Notifications: payday reminder and an alert when a foreman marks attendance (turn on in Settings).', ar: 'إشعارات: تذكير يوم القبض ولمّا رئيس الورشة يسجّل الحضور (شغّلها من الإعدادات).' },
+      { en: 'Pull down to refresh, and a loading screen when the app opens.', ar: 'اسحب لتحت لتحدّث، وشاشة تحميل بس يفتح التطبيق.' },
+      { en: 'Fixed the + button jumping while switching tabs.', ar: 'تصليح زر + اللي كان يتحرّك.' }
+    ]
+  },
+  {
     version: '1.5.1',
     date: '2026-11-15',
     items: [

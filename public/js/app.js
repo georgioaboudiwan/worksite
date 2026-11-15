@@ -1,9 +1,10 @@
 import { t, setLang, getLang } from './i18n.js';
 import { createStore } from './store.js';
+import { renderDoc, printDoc } from './docs.js';
 import { h, today, toDate, addDays, range, shift, daysIn, round2, csv } from './util.js';
 
 const root = document.getElementById('app');
-const S = { store: null, data: null, role: 'owner', changelog: [], members: null, view: 'dashboard', period: 'week', anchor: today(), workerId: null, siteId: null, brush: '', q: '' };
+const S = { store: null, data: null, role: 'owner', changelog: [], members: null, view: 'dashboard', period: 'week', anchor: today(), workerId: null, siteId: null, brush: '', q: '', docDraft: null, docPreview: false };
 
 const nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 const nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -79,6 +80,15 @@ function icon(name) {
     check: 'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z',
     chat: 'M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm-4 7h8v2H8zm0 4h5v2H8z',
     money: 'M3 6h18v12H3zm2 2v8h14V8zm7 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',
+    docs: 'M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5zM8 12v2h8v-2zm0 4v2h8v-2z',
+    report: 'M4 3h16v18H4zm2 2v14h12V5zm2 9h2v3H8zm3-4h2v7h-2zm3 2h2v5h-2z',
+    bell: 'M12 22a2.5 2.5 0 0 0 2.4-2h-4.8a2.5 2.5 0 0 0 2.4 2zm7-6V11a7 7 0 0 0-5-6.7V3.5a2 2 0 0 0-4 0v.8A7 7 0 0 0 5 11v5l-2 2v1h18v-1z',
+    cloud: 'M19.4 10A7.5 7.5 0 0 0 5.1 8.2 6 6 0 0 0 6 20h13a5 5 0 0 0 .4-10zM3 3l18 18-1.4 1.4L1.6 4.4z',
+    up: 'M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z',
+    down: 'M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z',
+    trash: 'M6 7h12l-1 14H7zm3-4h6l1 2h4v2H4V5h4z',
+    eye: 'M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+    pdf: 'M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm5 9v5.2l-2-2-1.4 1.4L12 20l4.4-4.4L15 14.2l-2 2V11z',
     helmet: 'M12 3a8 8 0 0 0-8 8v3H2v3h20v-3h-2v-3a8 8 0 0 0-6-7.7V7h-2V3.1A8 8 0 0 0 12 3zm-2 .3V7H8V4.4a8 8 0 0 1 2-1.1z'
   };
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -748,7 +758,8 @@ function viewSite() {
     h('div', { class: 'actionrow' },
       h('button', { class: 'btn ghost sm', onclick: () => editSiteTxn({ site_id: s.id, kind: 'expense' }) }, icon('plus'), ' ', t('addExpense')),
       h('button', { class: 'btn ghost sm', onclick: () => editSiteTxn({ site_id: s.id, kind: 'income' }) }, icon('money'), ' ', t('addIncome')),
-      h('button', { class: 'btn ghost sm', onclick: () => { S.view = 'planner'; S.period = 'week'; S.anchor = today(); S.brush = s.id; S.scrollToday = true; render(); } }, icon('planner'), ' ', t('assignSite'))),
+      h('button', { class: 'btn ghost sm', onclick: () => { S.view = 'planner'; S.period = 'week'; S.anchor = today(); S.brush = s.id; S.scrollToday = true; render(); } }, icon('planner'), ' ', t('assignSite')),
+      h('button', { class: 'btn ghost sm', onclick: () => printDoc(siteReport(s), `${s.name} - ${periodLabel()}`) }, icon('pdf'), ' ', t('reportPdf'))),
     periodBar(),
     h('div', { class: 'kpis' },
       kpi(t('income'), usd(st.income), null, 'good'), kpi(t('labor'), usd(st.labor)),
@@ -762,6 +773,132 @@ function viewSite() {
           h('span', { class: 'pl-main' }, h('b', null, x.kind === 'income' ? t('income') : (x.category ? (t(x.category) !== x.category ? t(x.category) : x.category) : t('expenses'))), h('small', { class: 'muted' }, [dayLabel(x.day), x.note].filter(Boolean).join(' · '))),
           h('span', { class: 'pl-amt' }, h('b', { class: x.kind === 'income' ? 'good-t' : '' }, (x.kind === 'income' ? '+' : '−') + usd(x.amount)), x.currency === 'LBP' && h('small', { class: 'muted block' }, lbpRaw(x.lbp_amount)))))) : empty(t('noData')))),
     fab(t('addExpense'), () => editSiteTxn({ site_id: s.id, kind: 'expense' })));
+}
+
+function companyHeader(subtitle) {
+  const b = S.data.biz;
+  return { company: b.name || t('app'), subtitle, phones: b.phone || '', website: b.website || '' };
+}
+
+function siteReport(s) {
+  const r = curRange();
+  const st = siteStats(s.id, r);
+  const byWorker = new Map();
+  st.entries.filter(worked).forEach(e => {
+    const x = byWorker.get(e.worker_id) || { days: 0, cost: 0 };
+    x.days += Number(e.days); x.cost += Number(e.amount);
+    byWorker.set(e.worker_id, x);
+  });
+  const wrows = [...byWorker.entries()].sort((a, b) => b[1].cost - a[1].cost).map(([id, x]) => [workerById(id)?.name || '?', daysTxt(x.days), usd(x.cost)]);
+  const tx = kind => st.txns.filter(x => x.kind === kind).sort((a, b) => a.day.localeCompare(b.day));
+  const catName = c => c ? (t(c) !== c ? t(c) : c) : '';
+  return {
+    header: companyHeader(`${t('siteReport')}: ${s.name}${s.client ? ' — ' + s.client : ''}`),
+    meta: `${periodLabel()} · ${r.start} → ${r.end}`,
+    sections: [
+      { title: t('summary'), kind: 'kpis', items: [[t('income'), usd(st.income), 'good'], [t('labor'), usd(st.labor)], [t('expenses'), usd(st.expenses)], [t('profit'), usd(st.profit), st.profit >= 0 ? 'good' : 'hot']] },
+      { title: t('workedHere'), kind: 'table', head: [t('worker'), t('days'), t('labor')], num: [1, 2], rows: wrows, foot: [t('total'), daysTxt(sum([...byWorker.values()], x => x.days)), usd(st.labor)], empty: t('noData') },
+      { title: t('expenses'), kind: 'table', head: [t('date'), t('category'), t('note'), t('amount')], num: [3], rows: tx('expense').map(x => [x.day, catName(x.category), x.note || '', usd(x.amount)]), foot: tx('expense').length ? ['', '', t('total'), usd(st.expenses)] : null, empty: t('noData') },
+      { title: t('income'), kind: 'table', head: [t('date'), t('note'), t('amount')], num: [2], rows: tx('income').map(x => [x.day, x.note || '', usd(x.amount)]), foot: tx('income').length ? ['', t('total'), usd(st.income)] : null, empty: t('noData') }
+    ]
+  };
+}
+
+const blankDoc = () => ({ title: t('newDoc'), content: { header: companyHeader(''), sections: [{ title: '', kind: 'numbered', items: [{ text: '' }] }] } });
+
+function viewDocs() {
+  const list = [...(S.data.docs || [])].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+  return h('div', { class: 'view' },
+    list.length ? h('div', { class: 'wlist' }, list.map(d => h('button', { class: 'wcard', onclick: () => openDoc(d.id) },
+      h('span', { class: 'av' }, icon('docs')),
+      h('span', { class: 'wc-main' }, h('b', null, d.title), h('small', { class: 'muted' }, [d.content?.header?.subtitle, String(d.updated_at || '').slice(0, 10)].filter(Boolean).join(' · '))),
+      icon('right')))) : empty(t('noDocs')),
+    fab(t('newDoc'), () => openDoc(null)));
+}
+
+function openDoc(id) {
+  const d = id ? S.data.docs.find(x => x.id === id) : blankDoc();
+  S.docDraft = JSON.parse(JSON.stringify(d));
+  S.docPreview = false;
+  S.view = 'doc';
+  render();
+  window.scrollTo(0, 0);
+}
+
+let docTimer = null;
+let docSaving = Promise.resolve();
+function docStatus(txt) { const el = document.getElementById('doc-status'); if (el) el.textContent = txt; }
+function queueDocSave() {
+  docStatus(t('saving'));
+  clearTimeout(docTimer);
+  docTimer = setTimeout(saveDocNow, 900);
+}
+function saveDocNow() {
+  clearTimeout(docTimer);
+  const draft = S.docDraft;
+  if (!draft) return docSaving;
+  docSaving = docSaving.then(async () => {
+    try {
+      const saved = await S.store.saveDoc({ id: draft.id, title: draft.title.trim() || t('newDoc'), content: draft.content });
+      draft.id = saved.id;
+      const list = S.data.docs;
+      const i = list.findIndex(x => x.id === saved.id);
+      if (i >= 0) list[i] = saved; else list.unshift(saved);
+      S.store.snapshot(S.data);
+      docStatus(t('savedAuto'));
+    } catch (err) { docStatus(t('error')); fail(err); }
+  });
+  return docSaving;
+}
+
+function grow(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }
+
+function viewDoc() {
+  const d = S.docDraft;
+  if (!d) { S.view = 'docs'; return viewDocs(); }
+  const c = d.content;
+  const bind = (obj, key, attrs = {}, multi) => {
+    const el = h(multi ? 'textarea' : 'input', { ...attrs, value: multi ? undefined : obj[key] ?? '', rows: multi ? '1' : undefined }, multi ? obj[key] ?? '' : null);
+    el.addEventListener('input', () => { obj[key] = el.value; if (multi) grow(el); queueDocSave(); });
+    if (multi) requestAnimationFrame(() => grow(el));
+    return el;
+  };
+  const restructure = fn => { fn(); queueDocSave(); render(); };
+  const top = h('div', { class: 'whead' },
+    h('button', { class: 'icon-btn flip', 'aria-label': 'back', onclick: async () => { await saveDocNow(); S.view = 'docs'; S.docDraft = null; render(); } }, icon('back')),
+    h('div', { class: 'wh-main' }, bind(d, 'title', { class: 'title-input', maxlength: '160', 'aria-label': t('docTitle') }), h('small', { class: 'muted', id: 'doc-status' }, d.id ? t('savedAuto') : '')),
+    h('button', { class: 'icon-btn' + (S.docPreview ? ' on' : ''), 'aria-label': t('preview'), onclick: () => { S.docPreview = !S.docPreview; render(); } }, icon('eye')),
+    h('button', { class: 'icon-btn', 'aria-label': t('exportPdf'), onclick: async () => { await saveDocNow(); printDoc(c, d.title); } }, icon('pdf')));
+  if (S.docPreview) return h('div', { class: 'view' }, top, h('div', { class: 'doc-preview' }, renderDoc(c)),
+    h('button', { class: 'btn wide', onclick: async () => { await saveDocNow(); printDoc(c, d.title); } }, icon('pdf'), ' ', t('exportPdf')));
+
+  const head = h('div', { class: 'card form' }, h('h3', null, t('docHeader')),
+    field(t('company'), bind(c.header, 'company', { maxlength: '160' })),
+    field(t('subtitle'), bind(c.header, 'subtitle', { maxlength: '240' })),
+    h('div', { class: 'row2' }, field(t('phone'), bind(c.header, 'phones', { maxlength: '120', dir: 'ltr' })), field(t('website'), bind(c.header, 'website', { maxlength: '120', dir: 'ltr' }))));
+
+  const secs = c.sections.map((sec, si) => h('div', { class: 'card doc-sec' },
+    h('div', { class: 'doc-sec-h' },
+      bind(sec, 'title', { class: 'sec-title', maxlength: '200', placeholder: t('sectionTitle') }),
+      h('button', { class: 'icon-btn', 'aria-label': 'up', disabled: si === 0, onclick: () => restructure(() => { [c.sections[si - 1], c.sections[si]] = [c.sections[si], c.sections[si - 1]]; }) }, icon('up')),
+      h('button', { class: 'icon-btn', 'aria-label': 'down', disabled: si === c.sections.length - 1, onclick: () => restructure(() => { [c.sections[si + 1], c.sections[si]] = [c.sections[si], c.sections[si + 1]]; }) }, icon('down')),
+      h('button', { class: 'icon-btn danger', 'aria-label': t('delete'), onclick: () => { if (confirm(t('confirmDelete'))) restructure(() => c.sections.splice(si, 1)); } }, icon('trash'))),
+    segPick([['numbered', t('kindNumbered')], ['notes', t('kindNotes')], ['text', t('kindText')]], sec.kind, k => { sec.kind = k; queueDocSave(); render(); }),
+    h('div', { class: 'doc-items' }, sec.items.map((it, ii) => h('div', { class: 'doc-item' },
+      h('span', { class: 'doc-n' }, sec.kind === 'numbered' ? ii + 1 : sec.kind === 'notes' ? '◆' : '¶'),
+      bind(it, 'text', { maxlength: '2000', placeholder: t('itemHint') }, true),
+      h('button', { class: 'icon-btn sm', 'aria-label': t('delete'), onclick: () => restructure(() => sec.items.splice(ii, 1)) }, icon('trash'))))),
+    h('button', { class: 'btn ghost sm', onclick: () => restructure(() => sec.items.push({ text: '' })) }, icon('plus'), ' ', t('addItem'))));
+
+  return h('div', { class: 'view narrow' }, top, head, secs,
+    h('button', { class: 'btn ghost wide', onclick: () => restructure(() => c.sections.push({ title: '', kind: 'numbered', items: [{ text: '' }] })) }, icon('plus'), ' ', t('addSection')),
+    h('div', { class: 'actionrow' },
+      h('button', { class: 'btn', onclick: async () => { await saveDocNow(); printDoc(c, d.title); } }, icon('pdf'), ' ', t('exportPdf')),
+      h('button', { class: 'btn ghost', onclick: async () => { await saveDocNow(); const copy = JSON.parse(JSON.stringify(d)); delete copy.id; copy.title = `${d.title} (2)`; S.docDraft = copy; render(); queueDocSave(); } }, icon('copy'), ' ', t('duplicate')),
+      d.id && h('button', { class: 'btn danger ghost', onclick: async () => {
+        if (!confirm(t('confirmDelete'))) return;
+        try { clearTimeout(docTimer); await S.store.removeDoc(d.id); S.data.docs = S.data.docs.filter(x => x.id !== d.id); S.store.snapshot(S.data); S.docDraft = null; S.view = 'docs'; toast(t('deleted')); render(); } catch (err) { fail(err); }
+      } }, icon('trash'), ' ', t('delete'))));
 }
 
 function editSite(s = {}) {
@@ -793,6 +930,53 @@ function editSiteTxn(x = {}) {
   sheet(x.id ? t('editTxn') : kind === 'income' ? t('addIncome') : t('addExpense'), form, async () => {
     await saveRow('site_txns', { id: x.id, site_id: x.site_id, kind, category: kind === 'expense' ? cat.value : null, day: date.value, note: note.value.trim() || null, ...mi.value() });
   }, x.id && (() => removeRow('site_txns', x.id)));
+}
+
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && window.isSecureContext;
+const isIos = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+function urlB64(s) {
+  const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+
+async function currentSub() {
+  if (!pushSupported()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+
+function pushCard() {
+  if (S.store.demo) return null;
+  const card = h('div', { class: 'card stack' }, h('div', { class: 'card-h' }, h('h3', null, t('notifications')), icon('bell')));
+  const fill = async () => {
+    const parts = [];
+    if (!pushSupported() || (isIos() && !isStandalone())) parts.push(h('p', { class: 'muted' }, isIos() ? t('pushInstallFirst') : t('pushUnsupported')));
+    else {
+      const sub = await currentSub().catch(() => null);
+      const denied = Notification.permission === 'denied';
+      parts.push(h('p', { class: 'muted' }, denied ? t('pushDenied') : sub ? t('pushOn') : t('pushHint')));
+      if (!denied) parts.push(sub
+        ? h('div', { class: 'actionrow' },
+          h('button', { class: 'btn ghost sm', onclick: async () => { try { await S.store.pushTest(); toast(t('pushSent')); } catch (err) { fail(err); } } }, t('pushTest')),
+          h('button', { class: 'btn danger ghost sm', onclick: async () => { try { await S.store.pushUnsubscribe(sub.endpoint); await sub.unsubscribe(); toast(t('saved')); fill(); } catch (err) { fail(err); } } }, t('pushOff')))
+        : h('button', { class: 'btn', onclick: async () => {
+          try {
+            if (await Notification.requestPermission() !== 'granted') return fill();
+            const reg = await navigator.serviceWorker.ready;
+            const { key } = await S.store.pushKey();
+            const s2 = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(key) });
+            await S.store.pushSubscribe(s2.toJSON());
+            toast(t('pushOn'));
+            fill();
+          } catch (err) { fail(err); }
+        } }, icon('bell'), ' ', t('pushEnable')));
+    }
+    card.replaceChildren(card.firstChild, ...parts);
+  };
+  fill();
+  return card;
 }
 
 function teamCard() {
@@ -838,7 +1022,7 @@ function viewSettings() {
   const news = S.changelog.length > 0 && h('div', { class: 'card' },
     h('div', { class: 'card-h' }, h('h3', null, t('whatsNew')), h('span', { class: 'muted' }, `${t('version')} ${S.changelog[0].version}`)),
     h('ul', { class: 'news' }, S.changelog[0].items.map(i => h('li', null, i[lk] || i.en))));
-  if (fm) return h('div', { class: 'view narrow' }, h('div', { class: 'card form' }, field(t('textSize'), ts)), news, acct);
+  if (fm) return h('div', { class: 'view narrow' }, h('div', { class: 'card form' }, field(t('textSize'), ts)), pushCard(), news, acct);
 
   const b = S.data.biz;
   const name = h('input', { name: 'name', maxlength: '120', value: b.name || '' });
@@ -854,12 +1038,15 @@ function viewSettings() {
   const rate = h('input', { name: 'lbp_rate', type: 'number', min: '1', step: '1', inputmode: 'numeric', value: b.lbp_rate });
   const ot = h('input', { name: 'overtime_multiplier', type: 'number', min: '1', max: '3', step: 'any', inputmode: 'decimal', value: b.overtime_multiplier ?? 1.5 });
   const weekly = h('input', { type: 'checkbox', checked: !!b.weekly_email });
+  const phone = h('input', { name: 'phone', maxlength: '80', dir: 'ltr', value: b.phone || '' });
+  const website = h('input', { name: 'website', maxlength: '120', dir: 'ltr', value: b.website || '' });
   const form = h('form', { class: 'form card', onsubmit: async ev => {
     ev.preventDefault();
     try {
       S.data.biz = await S.store.saveBiz({
         name: name.value.trim(), lang: lang.value, period: period.value, week_start: Number(ws.value), hours_per_day: Number(hpd.value),
-        lbp_rate: Number(rate.value), payday: Number(payday.value), overtime_multiplier: Number(ot.value), weekly_email: weekly.checked
+        lbp_rate: Number(rate.value), payday: Number(payday.value), overtime_multiplier: Number(ot.value), weekly_email: weekly.checked,
+        phone: phone.value.trim(), website: website.value.trim()
       });
       normalize();
       setLang(S.data.biz.lang);
@@ -867,13 +1054,14 @@ function viewSettings() {
       render();
     } catch (err) { fail(err); }
   } },
-    field(t('business'), name), h('div', { class: 'row2' }, field(t('language'), lang), field(t('textSize'), ts)),
+    field(t('business'), name), h('div', { class: 'row2' }, field(t('phone'), phone), field(t('website'), website)),
+    h('div', { class: 'row2' }, field(t('language'), lang), field(t('textSize'), ts)),
     h('div', { class: 'row2' }, field(t('defaultPeriod'), period), field(t('weekStart'), ws)),
     h('div', { class: 'row2' }, field(t('payday'), payday), field(t('hoursPerDay'), hpd)),
     h('div', { class: 'row2' }, field(t('lbpRate'), rate), field(t('otMultiplier'), ot)),
     !S.store.demo && h('label', { class: 'check' }, weekly, h('span', null, t('weeklyEmail'))),
     h('button', { class: 'btn', type: 'submit' }, t('save')));
-  return h('div', { class: 'view narrow' }, form, teamCard(), news, acct);
+  return h('div', { class: 'view narrow' }, form, pushCard(), teamCard(), news, acct);
 }
 
 function exportCsv() {
@@ -926,7 +1114,9 @@ function merge(kind, rows) {
 async function saveRow(kind, row, quiet) {
   const saved = await S.store.save(kind, row);
   merge(kind, [saved]);
-  if (!quiet) toast(t('saved'));
+  S.store.snapshot(S.data);
+  if (!quiet) toast(navigator.onLine ? t('saved') : t('savedOffline'));
+  if (!navigator.onLine || S.store.pending?.()) render();
   return saved;
 }
 
@@ -934,6 +1124,7 @@ async function removeRow(kind, id) {
   await S.store.remove(kind, id);
   S.data[kind] = S.data[kind].filter(r => r.id !== id);
   if (kind === 'workers') ['entries', 'payments', 'adjustments'].forEach(k => { S.data[k] = S.data[k].filter(x => x.worker_id !== id); });
+  S.store.snapshot(S.data);
   if (kind === 'sites') {
     S.data.entries.forEach(e => { if (e.site_id === id) e.site_id = null; });
     S.data.site_txns = S.data.site_txns.filter(x => x.site_id !== id);
@@ -943,6 +1134,7 @@ async function removeRow(kind, id) {
 
 function normalize() {
   ['entries', 'payments', 'workers', 'adjustments', 'site_txns'].forEach(k => { S.data[k] = (S.data[k] || []).map(numify); });
+  S.data.docs = S.data.docs || [];
   ['lbp_rate', 'hours_per_day', 'week_start', 'payday', 'overtime_multiplier'].forEach(f => { if (S.data.biz[f] != null) S.data.biz[f] = Number(S.data.biz[f]); });
 }
 
@@ -958,7 +1150,7 @@ function applyTextSize(v) {
 }
 
 const tabs = () => isForeman() ? ['planner', 'workers'] : ['dashboard', 'planner', 'workers', 'sites', 'payments'];
-const parentTab = { worker: 'workers', site: 'sites' };
+const parentTab = { worker: 'workers', site: 'sites', doc: 'docs' };
 
 function go(k) {
   const list = tabs();
@@ -970,25 +1162,57 @@ function go(k) {
   render(); window.scrollTo(0, 0);
 }
 
+function syncChip() {
+  const n = S.store?.pending?.() || 0;
+  const off = !navigator.onLine || S.offline;
+  if (!n && !off) return null;
+  return h('span', { class: 'sync-chip' + (off ? ' off' : '') }, icon('cloud'), off ? t('offlineShort') : t('pendingSync', { n }));
+}
+
+async function syncNow() {
+  if (!S.store?.pending || S.store.demo) return;
+  if (!S.store.pending()) { if (S.offline && navigator.onLine) await reload(); return; }
+  const { done, failed } = await S.store.flush();
+  if (failed) toast(t('syncFailed', { n: failed }), true);
+  if (done || failed) { await reload(); if (done) toast(t('synced')); }
+}
+
+async function reload() {
+  if (document.querySelector('.overlay') || S.view === 'doc') return;
+  try {
+    const d = await S.store.load();
+    if (d.offline) return;
+    S.data = d; S.offline = false;
+    S.role = d.role === 'foreman' ? 'foreman' : 'owner';
+    normalize();
+    render();
+  } catch {}
+}
+
 function render() {
-  const views = { dashboard: viewDashboard, planner: viewPlanner, workers: viewWorkers, worker: viewWorker, sites: viewSites, site: viewSite, payments: viewPayments, settings: viewSettings };
+  const views = { dashboard: viewDashboard, planner: viewPlanner, workers: viewWorkers, worker: viewWorker, sites: viewSites, site: viewSite, payments: viewPayments, settings: viewSettings, docs: viewDocs, doc: viewDoc };
   if (isForeman() && !['planner', 'workers', 'settings'].includes(S.view)) S.view = 'planner';
+  if (S.view !== 'doc' && S.docDraft) { saveDocNow(); S.docDraft = null; }
   const active = parentTab[S.view] || S.view;
   const navBtn = k => h('button', { class: active === k ? 'on' : '', 'aria-current': active === k ? 'page' : null, onclick: () => go(k) }, icon(k), h('span', null, t(k === 'sites' ? 'sitesTab' : k)));
   const title = t(active === 'sites' ? 'sitesTab' : active);
   const view = views[S.view]();
   if (S.slide) { view.classList.add('from-' + S.slide); S.slide = null; }
+  const fabEl = view.querySelector(':scope > .fab');
+  if (fabEl) $fab.replaceChildren(fabEl); else $fab.replaceChildren();
 
   root.replaceChildren(
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
         h('div', { class: 'brand' }, h('span', { class: 'logo' }, icon('helmet')), h('div', null, h('b', null, t('app')), h('small', null, S.data.biz.name || ''))),
-        h('nav', null, [...tabs(), 'settings'].map(navBtn)),
+        h('nav', null, [...tabs(), ...(isForeman() ? [] : ['docs']), 'settings'].map(navBtn)),
         S.store.demo && h('p', { class: 'banner sm' }, t('demo'))),
       h('main', null,
         h('header', { class: 'top' },
           h('span', { class: 'logo sm' }, icon('helmet')),
           h('div', { class: 'top-t' }, h('h1', null, title), h('small', { class: 'muted' }, S.data.biz.name || t('app'))),
+          syncChip(),
+          !isForeman() && h('button', { class: 'icon-btn gear' + (active === 'docs' ? ' on' : ''), 'aria-label': t('docs'), onclick: () => go('docs') }, icon('docs')),
           h('button', { class: 'icon-btn gear' + (S.view === 'settings' ? ' on' : ''), 'aria-label': t('settings'), onclick: () => go('settings') }, icon('settings'))),
         view)));
   drawNav(active);
@@ -998,6 +1222,9 @@ function render() {
   }
 }
 
+const $fab = h('div', { class: 'fab-slot' });
+const $ptr = h('div', { class: 'ptr', 'aria-hidden': 'true' }, h('span', { class: 'ptr-spin' }));
+document.body.append($fab, $ptr);
 const $dock = h('nav', { class: 'dock', 'aria-label': 'Main' });
 const $lens = h('span', { class: 'lens', 'aria-hidden': 'true' });
 document.body.append($dock);
@@ -1073,6 +1300,8 @@ $dock.addEventListener('click', ev => { if (Date.now() - dragEnd < 400) { ev.sto
 
 function authScreen(msg) {
   drawNav(null);
+  $fab.replaceChildren();
+  document.documentElement.classList.remove('booting');
   const params = new URLSearchParams(location.search);
   const invited = params.get('invite') || '';
   if (invited) history.replaceState(null, '', location.pathname);
@@ -1118,6 +1347,7 @@ async function boot() {
   const s = await S.store.session();
   if (!s) return authScreen();
   S.data = await S.store.load();
+  S.offline = !!S.data.offline;
   S.role = S.data.role === 'foreman' ? 'foreman' : 'owner';
   S.data.biz = S.data.biz || {};
   normalize();
@@ -1126,6 +1356,7 @@ async function boot() {
   setLang(S.data.biz.lang || getLang());
   landing();
   render();
+  document.documentElement.classList.remove('booting');
 }
 
 async function start() {
@@ -1135,9 +1366,47 @@ async function start() {
   S.store.onAuth((ev) => {
     if (ev === 'SIGNED_OUT' && S.data) { S.data = null; authScreen(t('sessionExpired')); }
   });
-  try { await boot(); } catch (err) { fail(err); authScreen(); }
+  try { await boot(); syncNow(); } catch (err) { fail(err); authScreen(); }
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
+
+let pull = null;
+let refreshing = false;
+const PULL_MAX = 90, PULL_GO = 70;
+window.addEventListener('touchstart', ev => {
+  pull = null;
+  if (!S.data || refreshing || ev.touches.length !== 1 || window.scrollY > 0 || document.querySelector('.overlay')) return;
+  if (ev.target.closest('.dock, .grid-wrap, textarea, input, select')) return;
+  pull = { y: ev.touches[0].clientY, x: ev.touches[0].clientX, d: 0 };
+}, { passive: true });
+window.addEventListener('touchmove', ev => {
+  if (!pull) return;
+  const dy = ev.touches[0].clientY - pull.y, dx = ev.touches[0].clientX - pull.x;
+  if (dy <= 0 || Math.abs(dx) > dy || window.scrollY > 0) { pull.d = 0; $ptr.style.transform = ''; $ptr.classList.remove('show', 'ready'); return; }
+  pull.d = Math.min(PULL_MAX, dy * 0.5);
+  $ptr.classList.add('show');
+  $ptr.classList.toggle('ready', pull.d >= PULL_GO);
+  $ptr.style.transform = `translate(-50%, ${pull.d}px) rotate(${pull.d * 4}deg)`;
+}, { passive: true });
+window.addEventListener('touchend', async () => {
+  if (!pull) return;
+  const go = pull.d >= PULL_GO;
+  pull = null;
+  if (!go) { $ptr.style.transform = ''; $ptr.classList.remove('show', 'ready'); return; }
+  refreshing = true;
+  $ptr.classList.add('spin');
+  $ptr.style.transform = `translate(-50%, ${PULL_GO}px)`;
+  try {
+    if (await newVersion()) { try { sessionStorage.setItem('worksite_updated', '1'); } catch {} location.reload(); return; }
+    await syncNow();
+    await reload();
+    toast(t('refreshed'));
+  } finally {
+    refreshing = false;
+    $ptr.classList.remove('spin', 'show', 'ready');
+    $ptr.style.transform = '';
+  }
+});
 
 let swipe = null;
 root.addEventListener('touchstart', ev => {
@@ -1167,13 +1436,25 @@ root.addEventListener('touchend', ev => {
 let loadedBuild = null;
 let updatePending = false;
 
-async function checkUpdate() {
-  let build;
+async function fetchBuild() {
   try {
     const res = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin' });
-    if (!res.ok) return;
-    ({ build } = await res.json());
-  } catch { return; }
+    return res.ok ? (await res.json()).build : null;
+  } catch { return null; }
+}
+
+async function newVersion() {
+  const build = await fetchBuild();
+  if (!build) return false;
+  if (!loadedBuild) { loadedBuild = build; return false; }
+  if (build === loadedBuild) return false;
+  try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch {}
+  return true;
+}
+
+async function checkUpdate() {
+  const build = await fetchBuild();
+  if (!build) return;
   if (!loadedBuild) { loadedBuild = build; return; }
   if (build === loadedBuild) return;
   if (document.querySelector('.overlay')) { updatePending = true; return; }
@@ -1188,5 +1469,7 @@ setInterval(checkUpdate, 5 * 60 * 1000);
 checkUpdate();
 try { if (sessionStorage.getItem('worksite_updated')) { sessionStorage.removeItem('worksite_updated'); setTimeout(() => toast(t('appUpdated')), 600); } } catch {}
 
-window.addEventListener('offline', () => toast(t('offline'), true));
+window.addEventListener('offline', () => { toast(t('offline'), true); if (S.data) render(); });
+window.addEventListener('online', () => { if (S.data) { render(); syncNow(); } });
+setInterval(() => { if (navigator.onLine && S.data) syncNow(); }, 30000);
 start();

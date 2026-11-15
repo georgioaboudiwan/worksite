@@ -1,4 +1,5 @@
 import { CHANGELOG } from './changelog.js';
+import { sendPush, vapidKeys } from './push.js';
 
 const COOKIE = '__Host-ws_session';
 const SESSION_DAYS = 30;
@@ -15,12 +16,15 @@ const TABLES = {
   adjustments: { fields: ['worker_id', 'day', 'kind', 'amount', 'hours', 'note'], required: ['worker_id', 'day', 'kind', 'amount'] },
   site_txns: { fields: ['site_id', 'day', 'kind', 'category', 'amount', 'currency', 'lbp_amount', 'lbp_rate', 'note'], required: ['site_id', 'day', 'kind', 'amount'] }
 };
-const BIZ_FIELDS = ['name', 'lbp_rate', 'hours_per_day', 'period', 'week_start', 'lang', 'payday', 'weekly_email', 'overtime_multiplier'];
+const BIZ_FIELDS = ['name', 'lbp_rate', 'hours_per_day', 'period', 'week_start', 'lang', 'payday', 'weekly_email', 'overtime_multiplier', 'phone', 'website'];
 const BOOL = new Set(['active', 'weekly_email']);
 const NUM = new Set(['daily_rate', 'days', 'hours', 'rate', 'amount', 'lbp_amount', 'lbp_rate', 'hours_per_day', 'week_start', 'payday', 'overtime_multiplier']);
 const ID_RE = /^[0-9a-f-]{36}$/;
 const FOREMAN_BIZ = ['name', 'hours_per_day', 'period', 'week_start', 'lang'];
 const FOREMAN_WORKER = ['id', 'name', 'trade', 'phone', 'active'];
+const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^updates\.push\.services\.mozilla\.com$/, /^web\.push\.apple\.com$/, /\.push\.apple\.com$/, /\.notify\.windows\.com$/];
+const STATUS_AR = { worked: 'اشتغل', planned: 'مخطط', absent: 'غايب' };
+const STATUS_EN = { worked: 'worked', planned: 'planned', absent: 'absent' };
 
 class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -142,11 +146,11 @@ function shape(r, user) {
   return r;
 }
 
-function insertRow(env, owner, kind, data, upsertDay) {
-  const id = crypto.randomUUID();
+function insertRow(env, owner, kind, data, upsertDay, clientId) {
+  const id = clientId && ID_RE.test(clientId) ? clientId : crypto.randomUUID();
   const cols = ['id', 'owner_id', ...Object.keys(data)];
   const vals = [id, owner, ...Object.values(data)];
-  let sql = `INSERT INTO ${kind} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`;
+  let sql = `INSERT INTO ${kind} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')}) ON CONFLICT(id) DO NOTHING`;
   if (upsertDay) {
     const upd = Object.keys(data).filter(k => !['worker_id', 'day'].includes(k)).map(k => `${k} = excluded.${k}`).join(', ');
     sql += ` ON CONFLICT(worker_id, day) DO UPDATE SET ${upd} WHERE ${kind}.owner_id = excluded.owner_id`;
@@ -208,6 +212,52 @@ async function notifyLatest(env) {
   if (!rel || !env.RESEND_API_KEY || !env.ADMIN_EMAIL) return;
   const done = await env.DB.prepare('SELECT 1 FROM release_notices WHERE version = ?').bind(rel.version).first();
   if (!done) await sendRelease(env, rel);
+}
+
+function cleanDoc(body) {
+  const str = (v, max) => String(v ?? '').slice(0, max);
+  const title = str(body.title, 160).trim();
+  if (!title) throw new HttpError(400, 'Missing title');
+  const c = body.content && typeof body.content === 'object' ? body.content : {};
+  const hd = c.header && typeof c.header === 'object' ? c.header : {};
+  const sections = Array.isArray(c.sections) ? c.sections.slice(0, 40) : [];
+  const content = {
+    header: { company: str(hd.company, 160), subtitle: str(hd.subtitle, 240), phones: str(hd.phones, 120), website: str(hd.website, 120) },
+    sections: sections.map(sec => ({
+      title: str(sec?.title, 200),
+      kind: ['numbered', 'notes', 'text'].includes(sec?.kind) ? sec.kind : 'numbered',
+      items: (Array.isArray(sec?.items) ? sec.items.slice(0, 100) : []).map(it => ({ text: str(it?.text, 2000) }))
+    }))
+  };
+  const json = JSON.stringify(content);
+  if (json.length > 100000) throw new HttpError(413, 'Document too large');
+  return { title, content: json };
+}
+
+const docOut = r => r && { id: r.id, title: r.title, content: JSON.parse(r.content), created_at: r.created_at, updated_at: r.updated_at };
+
+async function notifyAttendance(env, user, rows) {
+  const worked = rows.filter(r => r && r.status);
+  if (!worked.length) return;
+  const biz = await env.DB.prepare('SELECT lang FROM business WHERE owner_id = ?').bind(user.owner).first();
+  const ar = (biz?.lang || 'ar') === 'ar';
+  const ids = [...new Set(worked.map(r => r.worker_id))];
+  const { results: ws } = await env.DB.prepare(`SELECT id, name FROM workers WHERE owner_id = ? AND id IN (${ids.map(() => '?').join(',')})`).bind(user.owner, ...ids).all();
+  const sIds = [...new Set(worked.map(r => r.site_id).filter(Boolean))];
+  const ss = sIds.length ? (await env.DB.prepare(`SELECT id, name FROM sites WHERE owner_id = ? AND id IN (${sIds.map(() => '?').join(',')})`).bind(user.owner, ...sIds).all()).results : [];
+  const wn = id => ws.find(w => w.id === id)?.name || '?';
+  const sn = id => ss.find(x => x.id === id)?.name;
+  const label = r => `${wn(r.worker_id)}: ${(ar ? STATUS_AR : STATUS_EN)[r.status] || r.status}${r.status === 'worked' && r.days !== 1 ? ` (${r.days})` : ''}${sn(r.site_id) ? ` · ${sn(r.site_id)}` : ''}`;
+  const body = worked.length === 1 ? label(worked[0]) : `${worked.slice(0, 4).map(label).join('\n')}${worked.length > 4 ? `\n+${worked.length - 4}` : ''}`;
+  await sendPush(env, [user.owner], { title: ar ? `رئيس الورشة سجّل (${worked[0].day})` : `Foreman update (${worked[0].day})`, body, url: '/' });
+}
+
+async function owedByOwner(env, owner) {
+  const r = await env.DB.prepare(`SELECT
+    (SELECT COALESCE(SUM(amount),0) FROM entries WHERE owner_id = ?1)
+    + (SELECT COALESCE(SUM(CASE WHEN kind = 'deduction' THEN -amount ELSE amount END),0) FROM adjustments WHERE owner_id = ?1)
+    - (SELECT COALESCE(SUM(amount),0) FROM payments WHERE owner_id = ?1) AS owed`).bind(owner).first();
+  return r?.owed || 0;
 }
 
 function localDate(d = new Date()) {
@@ -276,7 +326,23 @@ ${rows.length ? `<table style="border-collapse:collapse;font-size:15px"><tr><th 
   await env.DB.prepare("INSERT INTO weekly_reports (owner_id, week, sent_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))").bind(owner, today).run();
 }
 
+async function paydayPush(env) {
+  const { iso, dow } = localDate();
+  const { results } = await env.DB.prepare(`SELECT b.owner_id, b.lang FROM business b WHERE b.payday = ?
+    AND EXISTS (SELECT 1 FROM push_subs p WHERE p.user_id = b.owner_id)
+    AND NOT EXISTS (SELECT 1 FROM weekly_reports r WHERE r.owner_id = b.owner_id AND r.week = ?)`).bind(dow, 'push:' + iso).all();
+  for (const r of results) {
+    const owed = await owedByOwner(env, r.owner_id);
+    const ar = (r.lang || 'ar') === 'ar';
+    await sendPush(env, [r.owner_id], ar
+      ? { title: 'اليوم يوم القبض', body: owed > 0.009 ? `عليك ${money(owed)} للعمّال` : 'ما عليك شي للعمّال', url: '/' }
+      : { title: 'Payday today', body: owed > 0.009 ? `You owe ${money(owed)} to your workers` : 'Nothing owed', url: '/' });
+    await env.DB.prepare("INSERT INTO weekly_reports (owner_id, week, sent_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT DO NOTHING").bind(r.owner_id, 'push:' + iso).run();
+  }
+}
+
 async function weeklyReports(env) {
+  await paydayPush(env).catch(err => console.error('payday push', err?.message));
   if (!env.RESEND_API_KEY) return;
   const { iso, dow } = localDate();
   const { results } = await env.DB.prepare(`SELECT b.owner_id, u.email FROM business b JOIN users u ON u.id = b.owner_id
@@ -290,7 +356,7 @@ async function weeklyReports(env) {
 
 const ownerOnly = user => { if (user.role !== 'owner') throw new HttpError(403, 'Not allowed'); };
 
-async function api(req, env, url) {
+async function api(req, env, url, ctx) {
   const path = url.pathname.replace(/\/+$/, '');
   const method = req.method;
 
@@ -374,6 +440,56 @@ async function api(req, env, url) {
     return json({ ok: true }, 200, { 'set-cookie': await createSession(env, user.id) });
   }
 
+  if (path === '/api/push/key' && method === 'GET') return json({ key: (await vapidKeys(env)).pub });
+
+  if (path === '/api/push/subscribe' && method === 'POST') {
+    const b = await readBody(req);
+    let host;
+    try { const u = new URL(String(b.endpoint || '')); if (u.protocol !== 'https:') throw 0; host = u.hostname; } catch { throw new HttpError(400, 'Invalid endpoint'); }
+    if (!PUSH_HOSTS.some(re => re.test(host))) throw new HttpError(400, 'Unsupported push service');
+    const p256dh = String(b.keys?.p256dh || ''), auth = String(b.keys?.auth || '');
+    if (!/^[A-Za-z0-9_-]{80,100}$/.test(p256dh) || !/^[A-Za-z0-9_-]{16,32}$/.test(auth)) throw new HttpError(400, 'Invalid keys');
+    await throttle(env, `pushsub:${user.id}`, 20, 3600);
+    await env.DB.prepare(`INSERT INTO push_subs (id, user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth`).bind(crypto.randomUUID(), user.id, b.endpoint, p256dh, auth).run();
+    return json({ ok: true }, 201);
+  }
+
+  if (path === '/api/push/unsubscribe' && method === 'POST') {
+    const b = await readBody(req);
+    await env.DB.prepare('DELETE FROM push_subs WHERE endpoint = ? AND user_id = ?').bind(String(b.endpoint || ''), user.id).run();
+    return json({ ok: true });
+  }
+
+  if (path === '/api/push/test' && method === 'POST') {
+    await throttle(env, `pushtest:${user.id}`, 5, 3600);
+    await sendPush(env, [user.id], { title: 'Worksite', body: '✓', url: '/' });
+    return json({ ok: true });
+  }
+
+  const dm = path.match(/^\/api\/docs(?:\/([0-9a-f-]{36}))?$/);
+  if (dm) {
+    ownerOnly(user);
+    const id = dm[1];
+    if (method === 'POST' && !id) {
+      const d = cleanDoc(await readBody(req));
+      const row = await env.DB.prepare('INSERT INTO docs (id, owner_id, title, content) VALUES (?, ?, ?, ?) RETURNING *').bind(crypto.randomUUID(), owner, d.title, d.content).first();
+      return json(docOut(row), 201);
+    }
+    if (method === 'PUT' && id) {
+      const d = cleanDoc(await readBody(req));
+      const row = await env.DB.prepare("UPDATE docs SET title = ?, content = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ? AND owner_id = ? RETURNING *").bind(d.title, d.content, id, owner).first();
+      if (!row) throw new HttpError(404, 'Not found');
+      return json(docOut(row));
+    }
+    if (method === 'DELETE' && id) {
+      const res = await env.DB.prepare('DELETE FROM docs WHERE id = ? AND owner_id = ?').bind(id, owner).run();
+      if (!res.meta.changes) throw new HttpError(404, 'Not found');
+      return json({ ok: true });
+    }
+    throw new HttpError(405, 'Method not allowed');
+  }
+
   if (path === '/api/data' && method === 'GET') {
     const d = await ownerData(env, owner);
     if (user.role === 'foreman') {
@@ -390,7 +506,8 @@ async function api(req, env, url) {
       role: 'owner',
       biz: shape(d.biz) || {},
       workers: d.workers.map(r => shape(r)), sites: d.sites.map(r => shape(r)), entries: d.entries.map(r => shape(r)),
-      payments: d.payments.map(r => shape(r)), adjustments: d.adjustments.map(r => shape(r)), site_txns: d.site_txns.map(r => shape(r))
+      payments: d.payments.map(r => shape(r)), adjustments: d.adjustments.map(r => shape(r)), site_txns: d.site_txns.map(r => shape(r)),
+      docs: (await env.DB.prepare('SELECT * FROM docs WHERE owner_id = ? ORDER BY updated_at DESC').bind(owner).all()).results.map(docOut)
     });
   }
 
@@ -447,15 +564,20 @@ async function api(req, env, url) {
     if (!Array.isArray(b) || b.length > 500) throw new HttpError(400, 'Bad list');
     if (!b.length) return json([]);
     const rows = await prepareEntries(env, user, b.map(r => clean(kind, r)));
-    const res = await env.DB.batch(rows.map(r => insertRow(env, owner, kind, r, true)));
-    return json(res.flatMap(r => r.results).map(r => shape(r, user)));
+    const res = await env.DB.batch(rows.map((r, i) => insertRow(env, owner, kind, r, true, b[i]?.id)));
+    const out = res.flatMap(r => r.results);
+    if (user.role === 'foreman') ctx.waitUntil(notifyAttendance(env, user, out).catch(err => console.error('notify', err?.message)));
+    return json(out.map(r => shape(r, user)));
   }
 
   if (method === 'POST' && !id) {
-    let data = clean(kind, await readBody(req));
+    const body = await readBody(req);
+    let data = clean(kind, body);
     if (kind === 'entries') [data] = await prepareEntries(env, user, [data]);
-    const row = await insertRow(env, owner, kind, data, kind === 'entries').first();
+    let row = await insertRow(env, owner, kind, data, kind === 'entries', body.id).first();
+    if (!row && body.id && ID_RE.test(body.id)) row = await env.DB.prepare(`SELECT * FROM ${kind} WHERE id = ? AND owner_id = ?`).bind(body.id, owner).first();
     if (!row) throw new HttpError(409, 'Conflict');
+    if (kind === 'entries' && user.role === 'foreman') ctx.waitUntil(notifyAttendance(env, user, [row]).catch(err => console.error('notify', err?.message)));
     return json(shape(row, user), 201);
   }
 
@@ -468,6 +590,7 @@ async function api(req, env, url) {
     const row = await env.DB.prepare(`UPDATE ${kind} SET ${keys.map(k => `${k} = ?`).join(', ')} WHERE id = ? AND owner_id = ? RETURNING *`)
       .bind(...keys.map(k => data[k]), id, owner).first();
     if (!row) throw new HttpError(404, 'Not found');
+    if (kind === 'entries' && user.role === 'foreman') ctx.waitUntil(notifyAttendance(env, user, [{ ...row }]).catch(err => console.error('notify', err?.message)));
     return json(shape(row, user));
   }
 
@@ -488,11 +611,11 @@ export default {
     if (event.cron === '0 6 * * *') ctx.waitUntil(weeklyReports(env).catch(err => console.error('weekly', err?.message)));
     else ctx.waitUntil(notifyLatest(env).catch(err => console.error('notify', err?.message)));
   },
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
     try {
-      return await api(req, env, url);
+      return await api(req, env, url, ctx);
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message }, err.status);
       const msg = String(err?.message || '');
