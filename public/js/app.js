@@ -26,6 +26,12 @@ const curRange = () => range(S.period, S.anchor, S.data.biz.week_start);
 const worked = e => e.status === 'worked';
 const sum = (arr, f) => arr.reduce((a, x) => a + (Number(f(x)) || 0), 0);
 const adjSigned = a => a.kind === 'deduction' ? -a.amount : a.amount;
+const hueOf = str => { let x = 0; for (const c of String(str || '')) x = (x * 31 + c.codePointAt(0)) % 360; return x; };
+function avatar(name, cls = '') {
+  const el = h('span', { class: ('av ' + cls).trim() }, String(name || '?').slice(0, 1).toUpperCase());
+  el.style.setProperty('--h', hueOf(name));
+  return el;
+}
 const locked = x => !!(x && (x.paid_by || x.until)) && !S.data.admin;
 const memberName = id => { const m = (S.data.team || []).find(x => x.id === id); return m ? m.email.split('@')[0] : ''; };
 const hasScopes = () => !isForeman() && S.data.workers.some(w => w.assigned_to);
@@ -348,11 +354,13 @@ function viewDashboard() {
   const onSite = td.filter(e => e.status !== 'absent').length;
   const workedToday = td.filter(worked).length;
 
-  const kpis = h('div', { class: 'kpis' },
-    kpi(t('earned'), usd(st.earned), lbp(st.earned)),
-    kpi(t('paid'), usd(st.paid), st.advances ? `${t('advances')}: ${usd(st.advances)}` : lbp(st.paid), 'good'),
-    kpi(st.left >= 0 ? t('left') : t('advance'), usd(Math.abs(st.left)), lbp(Math.abs(st.left)), st.left > 0 ? 'warn' : 'good'),
-    kpi(t('owed'), usd(owed), t('owedHint'), owed > 0 ? 'hot' : ''));
+  const kpis = h('div', { class: 'hero' },
+    h('div', { class: 'hero-top' },
+      h('div', null, h('span', { class: 'hero-l' }, t('owed')), h('strong', { class: 'hero-v' }, usd(owed)), h('span', { class: 'hero-s' }, `${lbp(owed)} · ${t('owedHint')}`)),
+      h('span', { class: 'hero-ico' }, icon('money'))),
+    h('div', { class: 'hero-grid' },
+      [[t('earned'), st.earned, ''], [t('paid'), st.paid, 'good'], [st.left >= 0 ? t('left') : t('advance'), Math.abs(st.left), st.left > 0 ? 'warn' : 'good']]
+        .map(([l, v, tone]) => h('div', { class: 'hero-c ' + tone }, h('span', null, l), h('b', null, usd(v))))));
 
   const strip = h('div', { class: 'card today' },
     h('div', null, h('span', { class: 'kl' }, t('onSite')), h('strong', { class: 'big' }, `${onSite}`, h('small', null, ` / ${activeWorkers().length}`))),
@@ -508,7 +516,7 @@ function plannerDay(ws) {
       if (S.sel) {
         return h('button', { class: 'daycard selrow' + (S.sel.has(key) ? ' sel' : ''), onclick: () => toggleKeys([key]) },
           h('span', { class: 'selbox' }, S.sel.has(key) ? icon('check') : ''),
-          h('span', { class: 'av' }, w.name.slice(0, 1)),
+          avatar(w.name),
           h('span', { class: 'wc-main' }, h('b', null, w.name), h('small', { class: 'muted' }, [e ? entryLabel(e) : '—', e?.paid_by && t('paidTag'), e?.del_by && t('pendingDelete')].filter(Boolean).join(' · '))));
       }
       const lockedRow = locked(e) || (e?.del_by && fm);
@@ -525,7 +533,7 @@ function plannerDay(ws) {
       if (lockedRow) siteSel.disabled = true;
       const card = h('div', { class: 'daycard ' + cur + (e?.paid_by ? ' paid' : '') + (e?.del_by ? ' pend' : '') },
         h('div', { class: 'dc-top' },
-          h('div', { class: 'who', onclick: () => !fm && openWorker(w.id) }, h('span', { class: 'av' }, w.name.slice(0, 1)),
+          h('div', { class: 'who', onclick: () => !fm && openWorker(w.id) }, avatar(w.name),
             h('div', null, h('b', null, w.name), h('small', { class: 'muted block' }, fm ? (w.trade || '') : `${w.trade || ''} · ${usd(w.daily_rate)}${t('perDay')}`))),
           h('b', { class: 'dc-amt' }, e?.del_by ? t('pendingDelete') : e?.paid_by ? `🔒 ${t('paidTag')}` : !fm && e && e.amount ? usd(e.amount) : cur === 'planned' ? t('planned') : '')),
         h('div', { class: 'dc-row' },
@@ -705,11 +713,11 @@ function viewWorkers() {
       if (fm) {
         const tel = (w.phone || '').replace(/[^\d+]/g, '');
         return h(tel ? 'a' : 'div', { class: 'wcard' + (w.active ? '' : ' off'), href: tel ? 'tel:' + tel : null },
-          h('span', { class: 'av' }, w.name.slice(0, 1)), h('span', { class: 'wc-main' }, h('b', null, w.name), h('small', { class: 'muted' }, w.trade || '')), tel && icon('phone'));
+          avatar(w.name), h('span', { class: 'wc-main' }, h('b', null, w.name), h('small', { class: 'muted' }, w.trade || '')), tel && icon('phone'));
       }
       const bal = balance(w.id);
       return h('button', { class: 'wcard' + (w.active ? '' : ' off'), onclick: () => openWorker(w.id) },
-        h('span', { class: 'av' }, w.name.slice(0, 1)),
+        avatar(w.name),
         h('span', { class: 'wc-main' }, h('b', null, w.name), h('small', { class: 'muted' }, [w.trade, `${usd(w.daily_rate)}${t('perDay')}`, hasScopes() && w.assigned_to && memberName(w.assigned_to), !w.active && t('inactive')].filter(Boolean).join(' · '))),
         h('span', { class: 'wc-bal ' + (bal > 0.009 ? 'hot-t' : bal < -0.009 ? 'good-t' : 'muted') }, h('small', null, bal < -0.009 ? t('credit') : t('balance')), usd(Math.abs(bal))));
     })) : empty(t('noWorkers')),
@@ -777,7 +785,7 @@ function viewWorker() {
   return h('div', { class: 'view' },
     h('div', { class: 'whead' },
       h('button', { class: 'icon-btn flip', 'aria-label': 'back', onclick: () => { S.view = 'workers'; render(); } }, icon('back')),
-      h('span', { class: 'av lg' }, w.name.slice(0, 1)),
+      avatar(w.name, 'lg'),
       h('div', { class: 'wh-main' }, h('h2', null, w.name), h('small', { class: 'muted' }, [w.trade, `${usd(w.daily_rate)}${t('perDay')}`].filter(Boolean).join(' · '))),
       tel && h('a', { class: 'icon-btn', href: 'tel:' + tel, 'aria-label': t('phone') }, icon('phone')),
       h('button', { class: 'icon-btn', 'aria-label': t('editWorker'), onclick: () => editWorker(w) }, icon('edit'))),
@@ -943,7 +951,7 @@ function viewPayments() {
     ps.length ? [...groups.entries()].map(([d, list]) => h('div', { class: 'card' },
       h('div', { class: 'card-h' }, h('h3', null, dayLabel(d)), h('b', null, usd(sum(list, p => p.amount)))),
       h('ul', { class: 'plist' }, list.map(p => h('li', { onclick: () => editPayment(p) },
-        h('span', { class: 'av sm' }, (workerById(p.worker_id)?.name || '?').slice(0, 1)),
+        avatar(workerById(p.worker_id)?.name || '?', 'sm'),
         h('span', { class: 'pl-main' }, h('b', null, workerById(p.worker_id)?.name || '?'), h('small', { class: 'muted' }, [p.until && `🔒 ${t('paidUntil')} ${dayLabel(p.until)}`, p.kind === 'advance' && t('advanceKind'), t(p.method), p.note].filter(Boolean).join(' · '))),
         h('span', { class: 'pl-amt' }, h('b', null, usd(p.amount)), p.currency === 'LBP' && h('small', { class: 'muted block' }, lbpRaw(p.lbp_amount)))))))) : empty(t('noData')),
     fab(t('addPayment'), () => editPayment()));
@@ -1254,7 +1262,7 @@ function teamCard() {
   const { primary, me, members = [] } = S.members;
   const roleLabel = r => r === 'owner' ? t('partner') : t('foreman');
   const row = (email, label, extra) => h('li', null,
-    h('span', { class: 'av sm' }, (email || '?').slice(0, 1).toUpperCase()),
+    avatar(email || '?', 'sm'),
     h('span', { class: 'pl-main' }, h('b', { dir: 'ltr' }, email), h('small', { class: 'muted' }, label)), extra);
   return h('div', { class: 'card' },
     h('div', { class: 'card-h' }, h('h3', null, t('team')), h('button', { class: 'btn ghost sm', onclick: chooseInvite }, icon('plus'), ' ', t('invite'))),
@@ -1393,7 +1401,7 @@ function viewLogs() {
     L.users.length > 0 && h('div', { class: 'card' },
       h('div', { class: 'card-h' }, h('h3', null, t('accounts')), h('b', null, String(L.users.length))),
       h('ul', { class: 'plist' }, L.users.map(u => h('li', null,
-        h('span', { class: 'av sm' }, u.email.slice(0, 1).toUpperCase()),
+        avatar(u.email, 'sm'),
         h('span', { class: 'pl-main' }, h('b', { dir: 'ltr' }, u.email), h('small', { class: 'muted' }, [roleOf(u.role), u.biz, u.role === 'main' && `${u.workers} ${t('workers')}`].filter(Boolean).join(' · '))))))),
     h('div', { class: 'card' },
       h('div', { class: 'card-h' }, h('h3', null, t('history'))),
