@@ -222,11 +222,13 @@ function insertRow(env, owner, kind, data, upsertDay, clientId, admin) {
   const id = clientId && ID_RE.test(clientId) ? clientId : crypto.randomUUID();
   const cols = ['id', 'owner_id', ...Object.keys(data)];
   const vals = [id, owner, ...Object.values(data)];
-  let sql = `INSERT INTO ${kind} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')}) ON CONFLICT(id) DO NOTHING`;
+  let sql = `INSERT INTO ${kind} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`;
   if (upsertDay) {
     const upd = Object.keys(data).filter(k => !['worker_id', 'day'].includes(k)).map(k => `${k} = excluded.${k}`).join(', ');
-    sql += ` ON CONFLICT(worker_id, day) DO UPDATE SET ${upd}, del_by = NULL, del_at = NULL WHERE ${kind}.owner_id = excluded.owner_id${admin ? '' : ` AND ${kind}.paid_by IS NULL`}`;
-  }
+    const where = `${kind}.owner_id = excluded.owner_id${admin ? '' : ` AND ${kind}.paid_by IS NULL`}`;
+    sql += ` ON CONFLICT(id) DO UPDATE SET ${upd}, del_by = NULL, del_at = NULL WHERE ${where} AND ${kind}.worker_id = excluded.worker_id AND ${kind}.day = excluded.day`;
+    sql += ` ON CONFLICT(worker_id, day) DO UPDATE SET ${upd}, del_by = NULL, del_at = NULL WHERE ${where}`;
+  } else sql += ' ON CONFLICT(id) DO NOTHING';
   return env.DB.prepare(sql + ' RETURNING *').bind(...vals);
 }
 

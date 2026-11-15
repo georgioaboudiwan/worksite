@@ -135,7 +135,7 @@ td.cell.now { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .cb.worked.part { background: color-mix(in srgb, var(--good) 45%, transparent); color: var(--text); }
 .cb.planned { border: 2px solid var(--plan); color: var(--plan); }
 .cb.absent { background: color-mix(in srgb, var(--hot) 70%, transparent); color: #2e0703; border: 0; }
-.cb .sd { position: absolute; bottom: 2px; inset-inline-end: 4px; font-size: 9px; font-style: normal; font-weight: 700; opacity: .7; text-transform: uppercase; }
+.cb .sd { position: absolute; top: 3px; inset-inline: 4px; font-size: 10px; line-height: 1.2; font-style: normal; font-weight: 700; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 .grid-wrap.month .cb .sd { display: none; }
 
 .daylist { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }

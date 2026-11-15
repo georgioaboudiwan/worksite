@@ -597,7 +597,7 @@ function plannerGrid(ws) {
       const site = e?.site_id ? siteById(e.site_id) : null;
       const k = selKey(w.id, d);
       const btn = h('button', { class: 'cb ' + c.cls + (site ? ' has-site' : '') + (e?.paid_by ? ' paid' : '') + (e?.del_by ? ' pend' : '') + (S.sel?.has(k) ? ' sel' : ''), title: site?.name || '', 'aria-label': `${w.name} ${d}`, onclick: () => S.sel ? toggleKeys([k]) : S.brush ? paint(w, d) : editEntry(w, d) },
-        c.txt, site && h('i', { class: 'sd' }, site.name.slice(0, 3)));
+        c.txt, site && h('i', { class: 'sd' }, site.name));
       if (site) btn.style.setProperty('--site', siteColor(site.id));
       return h('td', { class: 'cell ' + (d === today() ? 'now' : '') }, btn);
     });
