@@ -1,5 +1,18 @@
 export const CHANGELOG = [
   {
+    version: '1.7.0',
+    date: '2026-11-15',
+    items: [
+      { en: 'Partners: invite co-owners (for example your dad and brother). They see and edit the same sites, workers, payments and documents. Foremen are shared too.', ar: 'الشركاء: ادعي شركاء (متل بيّك وخيّك). بيشوفوا وبيعدّلوا نفس الورش والعمّال والدفعات والمستندات.' },
+      { en: 'People who already have an account can join a team with an invite code from the login screen, and leave it from Settings.', ar: 'اللي عندو حساب بيقدر ينضمّ برمز الدعوة من شاشة الدخول، ويترك الفريق من الإعدادات.' },
+      { en: "Partners' changes appear for everyone automatically (every 30 seconds and when the app is reopened).", ar: 'تعديلات الشركاء بتبيّن عند الكل لحالها.' },
+      { en: 'Foreman alerts and payday reminders go to every partner.', ar: 'إشعارات رئيس الورشة ويوم القبض بتوصل لكل الشركاء.' },
+      { en: 'Fixed the app sometimes staying on the loading screen after an update. If loading ever fails, a Try again button appears.', ar: 'تصليح التطبيق لمّا كان يعلق على شاشة التحميل.' },
+      { en: 'Each worker must have a different phone number.', ar: 'كل عامل لازم يكون إلو رقم تلفون مختلف.' },
+      { en: 'Short link: georgioaboudiwan.github.io/worksite opens the app.', ar: 'رابط قصير: georgioaboudiwan.github.io/worksite بيفتح التطبيق.' }
+    ]
+  },
+  {
     version: '1.6.1',
     date: '2026-11-15',
     items: [

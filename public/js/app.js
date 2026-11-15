@@ -600,6 +600,10 @@ function editWorker(w = {}) {
     field(t('name'), f.name), field(t('trade'), f.trade), field(`${t('rate')} (USD)`, f.daily_rate), field(t('phone'), f.phone), field(t('notes'), f.notes),
     h('label', { class: 'check' }, f.active, h('span', null, t('active'))));
   sheet(w.id ? t('editWorker') : t('addWorker'), form, async () => {
+    const key = v => { let d = String(v || '').replace(/\D/g, ''); if (d.startsWith('00')) d = d.slice(2); if (d.startsWith('961') && d.length >= 10) { d = d.slice(3); if (d.length === 7) d = '0' + d; } return d; };
+    const pk = key(f.phone.value);
+    const clash = pk && S.data.workers.find(x => x.id !== w.id && key(x.phone) === pk);
+    if (clash) throw new Error(t('phoneTaken', { name: clash.name }));
     const saved = await saveRow('workers', {
       id: w.id, name: f.name.value.trim(), trade: f.trade.value.trim() || null, daily_rate: Number(f.daily_rate.value),
       phone: f.phone.value.trim() || null, notes: f.notes.value.trim() || null, active: f.active.checked
@@ -1007,29 +1011,46 @@ function pushCard() {
 function teamCard() {
   if (S.store.demo) return null;
   if (S.members === null) {
-    S.members = [];
+    S.members = { members: [] };
     S.store.members().then(m => { S.members = m; if (S.view === 'settings') render(); }).catch(() => {});
   }
+  const { primary, me, members = [] } = S.members;
+  const roleLabel = r => r === 'owner' ? t('partner') : t('foreman');
+  const row = (email, label, extra) => h('li', null,
+    h('span', { class: 'av sm' }, (email || '?').slice(0, 1).toUpperCase()),
+    h('span', { class: 'pl-main' }, h('b', { dir: 'ltr' }, email), h('small', { class: 'muted' }, label)), extra);
   return h('div', { class: 'card' },
-    h('div', { class: 'card-h' }, h('h3', null, t('team')), h('button', { class: 'btn ghost sm', onclick: makeInvite }, icon('plus'), ' ', t('inviteForeman'))),
-    S.members.length ? h('ul', { class: 'plist' }, S.members.map(m => h('li', null,
-      h('span', { class: 'pl-main' }, h('b', null, m.email), h('small', { class: 'muted' }, t('foreman'))),
-      h('button', { class: 'btn danger ghost sm', onclick: async () => {
-        if (!confirm(t('confirmDelete'))) return;
-        try { await S.store.removeMember(m.id); S.members = S.members.filter(x => x.id !== m.id); toast(t('deleted')); render(); } catch (err) { fail(err); }
-      } }, t('removeMember'))))) : h('p', { class: 'muted' }, t('noMembers')));
+    h('div', { class: 'card-h' }, h('h3', null, t('team')), h('button', { class: 'btn ghost sm', onclick: chooseInvite }, icon('plus'), ' ', t('invite'))),
+    h('p', { class: 'muted' }, t('teamHint')),
+    h('ul', { class: 'plist' },
+      primary && row(primary.email, `${t('mainOwner')}${primary.id === me ? ` · ${t('you')}` : ''}`),
+      members.map(m => row(m.email, `${roleLabel(m.role)}${m.id === me ? ` · ${t('you')}` : ''}`, m.id !== me && h('button', { class: 'btn danger ghost sm', onclick: async () => {
+        if (!confirm(t('confirmRemove'))) return;
+        try { await S.store.removeMember(m.id); S.members.members = members.filter(x => x.id !== m.id); toast(t('deleted')); render(); } catch (err) { fail(err); }
+      } }, t('removeMember'))))),
+    !members.length && h('p', { class: 'muted' }, t('noMembers')));
 }
 
-async function makeInvite() {
+function chooseInvite() {
+  let role = 'owner';
+  const form = h('form', { class: 'form' },
+    segPick([['owner', t('partner')], ['foreman', t('foreman')]], role, r => { role = r; hint.textContent = t(r === 'owner' ? 'partnerHint' : 'foremanHint'); }),
+    h('p', { class: 'muted' }));
+  const hint = form.lastChild;
+  hint.textContent = t('partnerHint');
+  sheet(t('invite'), form, () => makeInvite(role), null, { saveLabel: t('createCode') });
+}
+
+async function makeInvite(role = 'foreman') {
   try {
-    const { code } = await S.store.invite();
+    const { code } = await S.store.invite(role);
     const link = `${location.origin}/?invite=${encodeURIComponent(code)}`;
     const codeEl = h('div', { class: 'invite-code' }, code);
     const box = h('form', { class: 'form' }, h('p', { class: 'muted' }, t('inviteNote')), codeEl,
       h('div', { class: 'actionrow' },
         h('button', { type: 'button', class: 'btn ghost sm', onclick: async () => { try { await navigator.clipboard.writeText(link); toast(t('copiedOk')); } catch { fail(new Error(t('error'))); } } }, icon('copy'), ' ', t('copy')),
         navigator.share && h('button', { type: 'button', class: 'btn ghost sm', onclick: () => navigator.share({ title: t('app'), text: `${t('inviteCode')}: ${code}`, url: link }).catch(() => {}) }, t('share'))));
-    sheet(t('inviteForeman'), box, async () => {});
+    sheet(`${t('invite')} · ${role === 'owner' ? t('partner') : t('foreman')}`, box, async () => {}, null, { saveLabel: t('done') });
   } catch (err) { fail(err); }
 }
 
@@ -1038,8 +1059,13 @@ function viewSettings() {
   const ts = h('select', { name: 'ts', onchange: () => { applyTextSize(ts.value); try { localStorage.setItem('worksite_ts', ts.value); } catch {} } },
     h('option', { value: '' }, t('tsNormal')), h('option', { value: 'l' }, t('tsLarge')), h('option', { value: 'xl' }, t('tsXLarge')));
   try { ts.value = localStorage.getItem('worksite_ts') || ''; } catch {}
+  const leaveBtn = !S.store.demo && S.data.primary === false || (fm && !S.store.demo) ? h('button', { class: 'btn danger ghost', onclick: async () => {
+    if (!confirm(t('confirmLeave'))) return;
+    try { await S.store.leave(); toast(t('saved')); await boot(); } catch (err) { fail(err); }
+  } }, t('leaveTeam')) : null;
   const acct = h('div', { class: 'card stack' },
     S.store.demo && h('p', { class: 'banner' }, t('demo')),
+    leaveBtn,
     !fm && h('button', { class: 'btn ghost', onclick: exportCsv }, t('exportCsv')),
     !S.store.demo && h('button', { class: 'btn ghost', onclick: changePassword }, t('changePassword')),
     h('button', { class: 'btn danger ghost', onclick: async () => { await S.store.signOut(); try { localStorage.removeItem('worksite_mode'); } catch {} location.reload(); } }, t('signOut')));
@@ -1196,17 +1222,22 @@ function syncChip() {
 
 async function syncNow() {
   if (!S.store?.pending || S.store.demo) return;
-  if (!S.store.pending()) { if (S.offline && navigator.onLine) await reload(); return; }
+  if (!S.store.pending()) { if (document.visibilityState === 'visible') await reload(true); return; }
   const { done, failed } = await S.store.flush();
   if (failed) toast(t('syncFailed', { n: failed }), true);
   if (done || failed) { await reload(); if (done) toast(t('synced')); }
 }
 
-async function reload() {
+let lastSnap = '';
+async function reload(quiet) {
   if (document.querySelector('.overlay') || S.view === 'doc') return;
+  if (quiet && document.activeElement?.matches?.('input, textarea, select')) return;
   try {
     const d = await S.store.load();
     if (d.offline) return;
+    const snap = JSON.stringify(d);
+    if (quiet && snap === lastSnap) return;
+    lastSnap = snap;
     S.data = d; S.offline = false;
     S.role = d.role === 'foreman' ? 'foreman' : 'owner';
     normalize();
@@ -1333,7 +1364,7 @@ function authScreen(msg) {
   let mode = invited ? 'up' : 'in';
   const email = h('input', { type: 'email', name: 'email', required: true, autocomplete: 'email', maxlength: '254' });
   const pw = h('input', { type: 'password', name: 'password', required: true, minlength: '10', maxlength: '128', autocomplete: 'current-password' });
-  const code = h('input', { name: 'invite', maxlength: '40', autocomplete: 'off', value: invited });
+  const code = h('input', { name: 'invite', maxlength: '40', autocomplete: 'off', value: invited, dir: 'ltr' });
   const codeF = field(t('haveInvite'), code);
   const info = h('p', { class: 'info' }, msg || '');
   const submit = h('button', { class: 'btn wide', type: 'submit' });
@@ -1342,17 +1373,24 @@ function authScreen(msg) {
     submit.textContent = mode === 'in' ? t('signIn') : t('signUp');
     toggle.textContent = mode === 'in' ? t('noAccount') : t('haveAccount');
     pw.autocomplete = mode === 'in' ? 'current-password' : 'new-password';
-    codeF.hidden = mode === 'in';
+    codeF.hidden = mode === 'in' && !invited && !showCode;
+    codeLink.hidden = !codeF.hidden;
   };
+  let showCode = false;
+  const codeLink = h('button', { class: 'link-btn', type: 'button', onclick: () => { showCode = true; draw(); code.focus(); } }, t('haveCode'));
   toggle.onclick = () => { mode = mode === 'in' ? 'up' : 'in'; draw(); };
   const form = h('form', { class: 'form', onsubmit: async ev => {
     ev.preventDefault();
     submit.disabled = true;
     try {
-      if (mode === 'in') { await S.store.signIn(email.value.trim(), pw.value); await boot(); }
+      if (mode === 'in') {
+        await S.store.signIn(email.value.trim(), pw.value);
+        if (code.value.trim()) { try { await S.store.join(code.value.trim()); toast(t('joined')); } catch (err) { fail(err); } }
+        await boot();
+      }
       else { const r = await S.store.signUp(email.value.trim(), pw.value, code.value.trim()); if (r.session) await boot(); else { info.textContent = t('checkEmail'); mode = 'in'; draw(); } }
     } catch (err) { fail(err); } finally { submit.disabled = false; }
-  } }, field(t('email'), email), field(t('password'), pw, t('pwRule')), codeF, submit, h('div', { class: 'auth-links' }, toggle), info);
+  } }, field(t('email'), email), field(t('password'), pw, t('pwRule')), codeF, submit, h('div', { class: 'auth-links' }, toggle, codeLink), info);
   draw();
   const langBtn = h('button', { class: 'chip', onclick: () => { setLang(getLang() === 'ar' ? 'en' : 'ar'); try { localStorage.setItem('worksite_lang', getLang()); } catch {} authScreen(); } }, getLang() === 'ar' ? 'English' : 'العربية');
   root.replaceChildren(h('div', { class: 'auth' },
@@ -1384,7 +1422,28 @@ async function boot() {
   document.documentElement.classList.remove('booting');
 }
 
+function bootFail() {
+  if (!document.documentElement.classList.contains('booting')) return;
+  document.documentElement.classList.remove('booting');
+  drawNav(null);
+  root.replaceChildren(h('div', { class: 'auth' }, h('div', { class: 'auth-card' },
+    h('span', { class: 'logo lg' }, icon('helmet')),
+    h('h1', null, t('app')),
+    h('p', { class: 'muted' }, t('loadFailed')),
+    h('button', { class: 'btn wide', onclick: hardReload }, t('retry')))));
+}
+
+async function hardReload() {
+  try { const regs = await navigator.serviceWorker?.getRegistrations(); await Promise.all((regs || []).map(r => r.unregister())); } catch {}
+  try { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } catch {}
+  location.reload();
+}
+
+window.addEventListener('error', () => setTimeout(bootFail, 0));
+window.addEventListener('unhandledrejection', () => setTimeout(bootFail, 0));
+
 async function start() {
+  setTimeout(bootFail, 25000);
   let mode = null;
   try { mode = localStorage.getItem('worksite_mode'); setLang(localStorage.getItem('worksite_lang') || 'ar'); applyTextSize(localStorage.getItem('worksite_ts')); } catch {}
   S.store = createStore(mode === 'demo' && !new URLSearchParams(location.search).get('invite'));
@@ -1462,10 +1521,12 @@ let loadedBuild = null;
 let updatePending = false;
 
 async function fetchBuild() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
-    const res = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin' });
+    const res = await fetch('/api/version', { cache: 'no-store', credentials: 'same-origin', signal: ctrl.signal });
     return res.ok ? (await res.json()).build : null;
-  } catch { return null; }
+  } catch { return null; } finally { clearTimeout(timer); }
 }
 
 async function newVersion() {
@@ -1488,7 +1549,7 @@ async function checkUpdate() {
   location.reload();
 }
 
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { checkUpdate(); if (S.data && navigator.onLine) syncNow(); } });
 window.addEventListener('focus', checkUpdate);
 setInterval(checkUpdate, 5 * 60 * 1000);
 checkUpdate();

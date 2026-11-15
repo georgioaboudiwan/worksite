@@ -1,4 +1,4 @@
-const CACHE = 'worksite-v15';
+const CACHE = 'worksite-v17';
 const SHELL = ['./', 'index.html', 'styles.css', 'pdoc.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/util.js', 'js/i18n.js', 'js/docs.js', 'icons/icon.svg', 'icons/icon-192.png'];
 
@@ -13,12 +13,13 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
-  e.respondWith(
-    fetch(e.request, { cache: 'no-cache' }).then(res => {
-      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
-      return res;
-    }).catch(() => caches.match(e.request).then(r => r || caches.match('index.html')))
-  );
+  const net = fetch(e.request, { cache: 'no-cache' }).then(res => {
+    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+    return res;
+  });
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
+  e.respondWith(Promise.race([net, timeout]).catch(() =>
+    caches.match(e.request).then(r => r || (e.request.mode === 'navigate' ? caches.match('index.html') : null)).then(r => r || net)));
 });
 
 self.addEventListener('push', e => {

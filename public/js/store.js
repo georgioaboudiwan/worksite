@@ -28,9 +28,11 @@ function apiStore() {
 
   async function call(method, path, body) {
     let res;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), path === 'data' ? 20000 : 12000);
     try {
       res = await fetch('/api/' + path, {
-        method, credentials: 'same-origin',
+        method, credentials: 'same-origin', signal: ctrl.signal, cache: 'no-store',
         headers: body !== undefined ? { 'content-type': 'application/json' } : {},
         body: body !== undefined ? JSON.stringify(body) : undefined
       });
@@ -38,6 +40,8 @@ function apiStore() {
       const err = new Error('Network error');
       err.net = true;
       throw err;
+    } finally {
+      clearTimeout(timer);
     }
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 && path !== 'login' && path !== 'password') authCb?.('SIGNED_OUT');
@@ -90,7 +94,9 @@ function apiStore() {
       return { done, failed };
     },
     changelog: () => call('GET', 'changelog'),
-    invite: () => call('POST', 'invites', {}),
+    invite: role => call('POST', 'invites', { role }),
+    join: invite => call('POST', 'join', { invite }),
+    leave: () => call('POST', 'leave', {}),
     members: () => call('GET', 'members'),
     removeMember: id => call('DELETE', `members/${id}`),
     saveBiz: row => call('PUT', 'biz', pick(row, BIZ_FIELDS)),

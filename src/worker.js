@@ -113,7 +113,16 @@ async function currentUser(req, env) {
     FROM sessions s JOIN users u ON u.id = s.user_id LEFT JOIN members m ON m.user_id = u.id WHERE s.token_hash = ?`)
     .bind(await sha256(token)).first();
   if (!row || row.expires_at < Date.now()) return null;
-  return { id: row.user_id, email: row.email, owner: row.owner_id || row.user_id, role: row.role || 'owner' };
+  return { id: row.user_id, email: row.email, owner: row.owner_id || row.user_id, role: row.role || 'owner', primary: !row.owner_id };
+}
+
+export function normPhone(v) {
+  let d = String(v || '').replace(/[^\d]/g, '');
+  if (!d) return null;
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('961') && d.length >= 10) { d = d.slice(3); if (d.length === 7) d = '0' + d; }
+  if (d.length < 6 || d.length > 15) throw new HttpError(400, 'Invalid phone number');
+  return d;
 }
 
 function clean(kind, body, partial) {
@@ -132,6 +141,7 @@ function clean(kind, body, partial) {
     }
     out[f] = v;
   }
+  if (kind === 'workers' && 'phone' in out) out.phone = normPhone(out.phone);
   if (!partial) for (const f of spec.required) if (out[f] == null) throw new HttpError(400, `Missing ${f}`);
   return out;
 }
@@ -237,6 +247,18 @@ function cleanDoc(body) {
 
 const docOut = r => r && { id: r.id, title: r.title, content: JSON.parse(r.content), created_at: r.created_at, updated_at: r.updated_at };
 
+async function ownerIds(env, owner) {
+  const { results } = await env.DB.prepare("SELECT user_id FROM members WHERE owner_id = ? AND role = 'owner'").bind(owner).all();
+  return [owner, ...results.map(r => r.user_id)];
+}
+
+async function inviteFor(env, code) {
+  if (!/^[A-Za-z0-9_-]{8,40}$/.test(code)) throw new HttpError(400, 'Invalid invite code');
+  const invite = await env.DB.prepare('SELECT code_hash, owner_id, role, expires_at FROM invites WHERE code_hash = ?').bind(await sha256(code)).first();
+  if (!invite || invite.expires_at < Date.now()) throw new HttpError(400, 'Invalid or expired invite code');
+  return invite;
+}
+
 async function notifyAttendance(env, user, rows) {
   const worked = rows.filter(r => r && r.status);
   if (!worked.length) return;
@@ -250,7 +272,7 @@ async function notifyAttendance(env, user, rows) {
   const sn = id => ss.find(x => x.id === id)?.name;
   const label = r => `${wn(r.worker_id)}: ${(ar ? STATUS_AR : STATUS_EN)[r.status] || r.status}${r.status === 'worked' && r.days !== 1 ? ` (${r.days})` : ''}${sn(r.site_id) ? ` · ${sn(r.site_id)}` : ''}`;
   const body = worked.length === 1 ? label(worked[0]) : `${worked.slice(0, 4).map(label).join('\n')}${worked.length > 4 ? `\n+${worked.length - 4}` : ''}`;
-  await sendPush(env, [user.owner], { title: ar ? `رئيس الورشة سجّل (${worked[0].day})` : `Foreman update (${worked[0].day})`, body, url: '/' });
+  await sendPush(env, await ownerIds(env, user.owner), { title: ar ? `رئيس الورشة سجّل (${worked[0].day})` : `Foreman update (${worked[0].day})`, body, url: '/' });
 }
 
 async function owedByOwner(env, owner) {
@@ -335,7 +357,7 @@ async function paydayPush(env) {
   for (const r of results) {
     const owed = await owedByOwner(env, r.owner_id);
     const ar = (r.lang || 'ar') === 'ar';
-    await sendPush(env, [r.owner_id], ar
+    await sendPush(env, await ownerIds(env, r.owner_id), ar
       ? { title: 'اليوم يوم القبض', body: owed > 0.009 ? `عليك ${money(owed)} للعمّال` : 'ما عليك شي للعمّال', url: '/' }
       : { title: 'Payday today', body: owed > 0.009 ? `You owe ${money(owed)} to your workers` : 'Nothing owed', url: '/' });
     await env.DB.prepare("INSERT INTO weekly_reports (owner_id, week, sent_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT DO NOTHING").bind(r.owner_id, 'push:' + iso).run();
@@ -375,9 +397,7 @@ async function api(req, env, url, ctx) {
     const code = String(b.invite || '').trim();
     let invite = null;
     if (code) {
-      if (!/^[A-Za-z0-9_-]{8,40}$/.test(code)) throw new HttpError(400, 'Invalid invite code');
-      invite = await env.DB.prepare('SELECT code_hash, owner_id, role, expires_at FROM invites WHERE code_hash = ?').bind(await sha256(code)).first();
-      if (!invite || invite.expires_at < Date.now()) throw new HttpError(400, 'Invalid or expired invite code');
+      invite = await inviteFor(env, code);
     } else if (env.ALLOW_SIGNUP !== 'true') {
       throw new HttpError(403, 'Sign-ups are closed. Ask for an invite code.');
     }
@@ -423,7 +443,7 @@ async function api(req, env, url, ctx) {
   if (path === '/api/version' && method === 'GET') return json({ build: env.BUILD_ID || 'dev' });
 
   const user = await currentUser(req, env);
-  if (path === '/api/me' && method === 'GET') return json({ user: user && { email: user.email, role: user.role } });
+  if (path === '/api/me' && method === 'GET') return json({ user: user && { email: user.email, role: user.role, primary: user.primary } });
   if (!user) throw new HttpError(401, 'Not signed in');
   const owner = user.owner;
 
@@ -520,6 +540,7 @@ async function api(req, env, url, ctx) {
     }
     return json({
       role: 'owner',
+      primary: user.primary,
       biz: shape(d.biz) || {},
       workers: d.workers.map(r => shape(r)), sites: d.sites.map(r => shape(r)), entries: d.entries.map(r => shape(r)),
       payments: d.payments.map(r => shape(r)), adjustments: d.adjustments.map(r => shape(r)), site_txns: d.site_txns.map(r => shape(r)),
@@ -545,27 +566,59 @@ async function api(req, env, url, ctx) {
 
   if (path === '/api/invites' && method === 'POST') {
     ownerOnly(user);
+    const b = await readBody(req);
+    const role = b.role === 'owner' ? 'owner' : 'foreman';
     await throttle(env, `invite:${user.id}`, 10, 86400);
     const code = randomToken(9);
     const now = Date.now();
     await env.DB.batch([
       env.DB.prepare('DELETE FROM invites WHERE owner_id = ? AND expires_at < ?').bind(owner, now),
-      env.DB.prepare("INSERT INTO invites (code_hash, owner_id, role, expires_at, created_at) VALUES (?, ?, 'foreman', ?, ?)").bind(await sha256(code), owner, now + INVITE_DAYS * 864e5, now)
+      env.DB.prepare('INSERT INTO invites (code_hash, owner_id, role, expires_at, created_at) VALUES (?, ?, ?, ?, ?)').bind(await sha256(code), owner, role, now + INVITE_DAYS * 864e5, now)
     ]);
-    return json({ code, expires_at: now + INVITE_DAYS * 864e5 }, 201);
+    return json({ code, role, expires_at: now + INVITE_DAYS * 864e5 }, 201);
   }
 
   if (path === '/api/members' && method === 'GET') {
     ownerOnly(user);
-    const { results } = await env.DB.prepare('SELECT m.user_id AS id, u.email, m.role, m.created_at FROM members m JOIN users u ON u.id = m.user_id WHERE m.owner_id = ? ORDER BY m.created_at').bind(owner).all();
-    return json(results);
+    const primary = await env.DB.prepare('SELECT id, email FROM users WHERE id = ?').bind(owner).first();
+    const { results } = await env.DB.prepare('SELECT m.user_id AS id, u.email, m.role, m.created_at FROM members m JOIN users u ON u.id = m.user_id WHERE m.owner_id = ? ORDER BY m.role DESC, m.created_at').bind(owner).all();
+    return json({ primary: primary && { id: primary.id, email: primary.email }, me: user.id, members: results });
   }
 
   const mm = path.match(/^\/api\/members\/([0-9a-f-]{36})$/);
   if (mm && method === 'DELETE') {
     ownerOnly(user);
-    const res = await env.DB.prepare('DELETE FROM users WHERE id = ? AND id IN (SELECT user_id FROM members WHERE owner_id = ?)').bind(mm[1], owner).run();
+    if (mm[1] === user.id) throw new HttpError(400, 'Use Leave instead');
+    const res = await env.DB.prepare('DELETE FROM members WHERE user_id = ? AND owner_id = ?').bind(mm[1], owner).run();
     if (!res.meta.changes) throw new HttpError(404, 'Not found');
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(mm[1]),
+      env.DB.prepare("INSERT INTO business (owner_id, lang) VALUES (?, 'ar') ON CONFLICT(owner_id) DO NOTHING").bind(mm[1])
+    ]);
+    return json({ ok: true });
+  }
+
+  if (path === '/api/join' && method === 'POST') {
+    await throttle(env, `join:${user.id}`, 10, 3600);
+    const b = await readBody(req);
+    const invite = await inviteFor(env, String(b.invite || '').trim());
+    if (invite.owner_id === user.id) throw new HttpError(400, 'This is your own business');
+    if (!user.primary) throw new HttpError(409, 'Leave your current team first');
+    const ownTeam = await env.DB.prepare('SELECT 1 FROM members WHERE owner_id = ? LIMIT 1').bind(user.id).first();
+    if (ownTeam) throw new HttpError(409, 'Remove the people in your own team first');
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO members (user_id, owner_id, role) VALUES (?, ?, ?)').bind(user.id, invite.owner_id, invite.role),
+      env.DB.prepare('DELETE FROM invites WHERE code_hash = ?').bind(invite.code_hash)
+    ]);
+    return json({ ok: true, role: invite.role });
+  }
+
+  if (path === '/api/leave' && method === 'POST') {
+    if (user.primary) throw new HttpError(400, 'You are the main owner');
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM members WHERE user_id = ?').bind(user.id),
+      env.DB.prepare("INSERT INTO business (owner_id, lang) VALUES (?, 'ar') ON CONFLICT(owner_id) DO NOTHING").bind(user.id)
+    ]);
     return json({ ok: true });
   }
 
@@ -635,6 +688,7 @@ export default {
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message }, err.status);
       const msg = String(err?.message || '');
+      if (/UNIQUE constraint failed: workers\.owner_id, workers\.phone/i.test(msg)) return json({ error: 'This phone number is already used by another worker' }, 409);
       if (/CHECK constraint|FOREIGN KEY|NOT NULL|UNIQUE/i.test(msg)) return json({ error: 'Invalid data' }, 400);
       console.error(err);
       return json({ error: 'Server error' }, 500);
