@@ -726,6 +726,22 @@ function waPhone(raw) {
   return d.length >= 7 && d.length <= 8 ? '961' + d : d;
 }
 
+function openWhatsApp(phone, text) {
+  const q = [phone && `phone=${phone}`, `text=${encodeURIComponent(text)}`].filter(Boolean).join('&');
+  const mobile = /Android|iP(hone|ad|od)/i.test(navigator.userAgent) || isIos();
+  if (!mobile) { window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener'); return; }
+  let left = false;
+  const onHide = () => { if (document.visibilityState === 'hidden') left = true; };
+  document.addEventListener('visibilitychange', onHide);
+  window.addEventListener('pagehide', onHide);
+  location.href = `whatsapp://send?${q}`;
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', onHide);
+    window.removeEventListener('pagehide', onHide);
+    if (!left) toast(t('noWhatsapp'), true);
+  }, 2000);
+}
+
 function sendStatement(w) {
   const r = curRange();
   const st = stats(w.id, r);
@@ -742,7 +758,7 @@ function sendStatement(w) {
     S.data.biz.name ? `— ${S.data.biz.name}` : ''
   ].filter((x, i, a) => x !== '' || a[i - 1] !== '').join('\n').trim();
   const phone = waPhone(w.phone);
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines)}`, '_blank', 'noopener');
+  openWhatsApp(phone, lines);
 }
 
 function viewWorker() {
