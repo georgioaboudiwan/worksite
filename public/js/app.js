@@ -1534,6 +1534,9 @@ function render() {
   const active = parentTab[S.view] || S.view;
   const navBtn = k => h('button', { class: active === k ? 'on' : '', 'aria-current': active === k ? 'page' : null, onclick: () => go(k) }, icon(k), h('span', null, t(k === 'sites' ? 'sitesTab' : k)));
   const title = t(active === 'sites' ? 'sitesTab' : active);
+  const oldGrid = root.querySelector('.grid-wrap');
+  const keepGrid = oldGrid && S.lastView === S.view && S.lastPeriod === S.period ? { l: oldGrid.scrollLeft, t: oldGrid.scrollTop } : null;
+  S.lastView = S.view; S.lastPeriod = S.period;
   const view = views[S.view]();
   if (S.slide) { view.classList.add('from-' + S.slide); S.slide = null; }
   const fabEl = view.querySelector(':scope > .selbar') || view.querySelector(':scope > .fab');
@@ -1555,6 +1558,8 @@ function render() {
           h('button', { class: 'icon-btn gear' + (S.view === 'settings' ? ' on' : ''), 'aria-label': t('settings'), onclick: () => go('settings') }, icon('settings'))),
         view)));
   drawNav(active);
+  const newGrid = keepGrid && !S.scrollToday && root.querySelector('.grid-wrap');
+  if (newGrid) { newGrid.scrollLeft = keepGrid.l; newGrid.scrollTop = keepGrid.t; }
   if (S.scrollToday && S.view === 'planner') {
     S.scrollToday = false;
     requestAnimationFrame(() => root.querySelector('.grid-wrap .dh.now')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
