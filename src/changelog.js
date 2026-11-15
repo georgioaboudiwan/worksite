@@ -1,5 +1,13 @@
 export const CHANGELOG = [
   {
+    version: '1.5.1',
+    date: '2026-11-15',
+    items: [
+      { en: 'New glass tab bar like Ishtirak: drag your finger along it and the glass lens follows, release to open that tab.', ar: 'قائمة زجاجية جديدة متل اشتراك: اسحب إصبعك عليها وفلّت عالقسم اللي بدّك ياه.' },
+      { en: 'The bar stays in place between pages, so the lens slides smoothly to the new tab.', ar: 'القائمة بتضل ثابتة والدائرة بتتزحلق عالقسم الجديد.' }
+    ]
+  },
+  {
     version: '1.5.0',
     date: '2026-11-15',
     items: [

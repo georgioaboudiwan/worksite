@@ -978,10 +978,7 @@ function render() {
   const title = t(active === 'sites' ? 'sitesTab' : active);
   const view = views[S.view]();
   if (S.slide) { view.classList.add('from-' + S.slide); S.slide = null; }
-  const tabList = tabs();
-  const tabBar = h('nav', { class: 'tabs' + (tabList.includes(active) ? '' : ' no-ind') }, tabList.map(navBtn));
-  tabBar.style.setProperty('--n', tabList.length);
-  tabBar.style.setProperty('--i', Math.max(0, tabList.indexOf(active)));
+
   root.replaceChildren(
     h('div', { class: 'shell' },
       h('aside', { class: 'side' },
@@ -993,15 +990,89 @@ function render() {
           h('span', { class: 'logo sm' }, icon('helmet')),
           h('div', { class: 'top-t' }, h('h1', null, title), h('small', { class: 'muted' }, S.data.biz.name || t('app'))),
           h('button', { class: 'icon-btn gear' + (S.view === 'settings' ? ' on' : ''), 'aria-label': t('settings'), onclick: () => go('settings') }, icon('settings'))),
-        view),
-      tabBar));
+        view)));
+  drawNav(active);
   if (S.scrollToday && S.view === 'planner') {
     S.scrollToday = false;
     requestAnimationFrame(() => root.querySelector('.grid-wrap .dh.now')?.scrollIntoView({ inline: 'center', block: 'nearest' }));
   }
 }
 
+const $dock = h('nav', { class: 'dock', 'aria-label': 'Main' });
+const $lens = h('span', { class: 'lens', 'aria-hidden': 'true' });
+document.body.append($dock);
+let navList = [];
+let drag = null;
+let dragEnd = 0;
+const isRtl = () => document.documentElement.dir === 'rtl';
+
+function drawNav(active) {
+  navList = active === null ? [] : tabs();
+  document.body.classList.toggle('has-nav', navList.length > 0);
+  if (!navList.length) { $dock.replaceChildren(); return; }
+  const idx = navList.indexOf(active);
+  $dock.style.setProperty('--n', String(navList.length));
+  $dock.replaceChildren($lens, ...navList.map(k => h('button', {
+    type: 'button', class: 'tab' + (active === k ? ' on' : ''), 'aria-current': active === k ? 'page' : null, onclick: () => go(k)
+  }, icon(k), h('span', null, t(k === 'sites' ? 'sitesTab' : k)))));
+  requestAnimationFrame(() => {
+    $lens.style.opacity = idx < 0 ? '0' : '1';
+    if (idx >= 0) $lens.style.transform = `translateX(${(isRtl() ? -idx : idx) * 100}%)`;
+  });
+}
+
+function dragIndex(d) {
+  const near = Math.round(d.pos / d.w);
+  return isRtl() ? d.n - 1 - near : near;
+}
+
+function dragStop() {
+  $dock.classList.remove('dragging');
+  $dock.querySelectorAll('.tab').forEach(el => el.classList.remove('over'));
+  drag = null;
+}
+
+$dock.addEventListener('pointerdown', ev => {
+  if (!navList.length || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+  const r = $dock.getBoundingClientRect();
+  drag = { id: ev.pointerId, x0: ev.clientX, left: r.left + 6, w: (r.width - 12) / navList.length, n: navList.length, moved: false, pos: 0 };
+});
+
+$dock.addEventListener('pointermove', ev => {
+  if (!drag || ev.pointerId !== drag.id) return;
+  if (!drag.moved && Math.abs(ev.clientX - drag.x0) < 8) return;
+  if (!drag.moved) {
+    drag.moved = true;
+    try { $dock.setPointerCapture(ev.pointerId); } catch {}
+    $dock.classList.add('dragging');
+    $lens.style.opacity = '1';
+  }
+  const max = (drag.n - 1) * drag.w;
+  drag.pos = Math.max(0, Math.min(max, ev.clientX - drag.left - drag.w / 2));
+  $lens.style.transform = `translateX(${isRtl() ? drag.pos - max : drag.pos}px)`;
+  const i = dragIndex(drag);
+  $dock.querySelectorAll('.tab').forEach((el, j) => el.classList.toggle('over', j === i));
+});
+
+function dragDone(ev) {
+  if (!drag || ev.pointerId !== drag.id) return;
+  const d = drag;
+  dragStop();
+  if (!d.moved) return;
+  dragEnd = Date.now();
+  const target = navList[dragIndex(d)];
+  if (ev.type === 'pointerup' && target && target !== (parentTab[S.view] || S.view)) {
+    if (navigator.vibrate) navigator.vibrate(8);
+    go(target);
+  } else drawNav(parentTab[S.view] || S.view);
+}
+
+$dock.addEventListener('pointerup', dragDone);
+$dock.addEventListener('pointercancel', dragDone);
+$dock.addEventListener('click', ev => { if (Date.now() - dragEnd < 400) { ev.stopPropagation(); ev.preventDefault(); } }, true);
+
 function authScreen(msg) {
+  drawNav(null);
   const params = new URLSearchParams(location.search);
   const invited = params.get('invite') || '';
   if (invited) history.replaceState(null, '', location.pathname);
