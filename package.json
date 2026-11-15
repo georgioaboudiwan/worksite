@@ -19,6 +19,7 @@
   "dependencies": {
     "@capacitor/android": "^7.6.10",
     "@capacitor/core": "^7.6.10",
-    "@capacitor/ios": "^7.6.10"
+    "@capacitor/ios": "^7.6.10",
+    "@cloudflare/puppeteer": "^2.0.0"
   }
 }

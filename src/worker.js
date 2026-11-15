@@ -1,5 +1,6 @@
 import { CHANGELOG } from './changelog.js';
 import { sendPush, vapidKeys } from './push.js';
+import { cleanPdf, renderPdf } from './pdf.js';
 
 const COOKIE = '__Host-ws_session';
 const SESSION_DAYS = 30;
@@ -465,6 +466,21 @@ async function api(req, env, url, ctx) {
     await throttle(env, `pushtest:${user.id}`, 5, 3600);
     await sendPush(env, [user.id], { title: 'Worksite', body: '✓', url: '/' });
     return json({ ok: true });
+  }
+
+  if (path === '/api/pdf' && method === 'POST') {
+    ownerOnly(user);
+    if (!env.BROWSER) throw new HttpError(503, 'PDF service is not available');
+    await throttle(env, `pdf:${user.id}`, 40, 3600);
+    const doc = cleanPdf(await readBody(req));
+    let pdf;
+    try { pdf = await renderPdf(env, doc); }
+    catch (err) { console.error('pdf', err?.message); throw new HttpError(503, /429|limit/i.test(String(err?.message)) ? 'PDF limit reached for today' : 'PDF could not be created'); }
+    const name = doc.title.replace(/[\\/:*?"<>|\r\n]+/g, ' ').trim() || 'Worksite';
+    return new Response(pdf, { headers: {
+      'content-type': 'application/pdf', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
+      'content-disposition': `attachment; filename="document.pdf"; filename*=UTF-8''${encodeURIComponent(name)}.pdf`
+    } });
   }
 
   const dm = path.match(/^\/api\/docs(?:\/([0-9a-f-]{36}))?$/);

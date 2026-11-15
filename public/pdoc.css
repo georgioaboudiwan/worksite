@@ -1,0 +1,37 @@
+@font-face { font-family: 'Worksite Doc'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/nsa-arabic-400.woff2) format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+@font-face { font-family: 'Worksite Doc'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/nsa-latin-400.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Worksite Doc'; font-style: normal; font-weight: 700; font-display: swap; src: url(fonts/nsa-arabic-700.woff2) format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+@font-face { font-family: 'Worksite Doc'; font-style: normal; font-weight: 700; font-display: swap; src: url(fonts/nsa-latin-700.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+.pdoc { font-family: "Worksite Doc", "Segoe UI", system-ui, -apple-system, "Geeza Pro", Tahoma, Arial, sans-serif; color: #1c2533; background: #fff; font-size: 14px; line-height: 1.55; -webkit-print-color-adjust: exact; print-color-adjust: exact; max-width: 820px; margin: 0 auto; }
+.pd-head { background: #1f3a5c; color: #fff; text-align: center; padding: 26px 20px 20px; border-bottom: 6px solid #c8962e; }
+.pd-head h1 { margin: 0 0 10px; font-size: 26px; font-weight: 800; }
+.pd-sub { margin: 0 0 10px; color: #dcb66a; font-size: 15px; }
+.pd-ph { margin: 0 0 8px; font-weight: 800; direction: ltr; unicode-bidi: plaintext; }
+.pd-web { margin: 0; color: #dcb66a; text-decoration: underline; direction: ltr; }
+.pd-meta { margin: 14px 0 0; text-align: center; color: #5b6575; font-weight: 600; }
+.pd-sec { margin-top: 24px; }
+.pd-sec h2 { margin: 0 0 12px; padding: 6px 12px; font-size: 17px; font-weight: 800; color: #1f3a5c; border-inline-start: 5px solid #c8962e; border-bottom: 1.5px solid #c8962e; break-after: avoid; }
+.pd-num { list-style: none; margin: 0; padding: 0 0 0; display: flex; flex-direction: column; gap: 2px; }
+.pd-num li { display: flex; align-items: stretch; break-inside: avoid; }
+.pd-num .n { flex: none; width: 42px; display: grid; place-items: center; background: #1f3a5c; color: #fff; font-weight: 800; }
+.pd-num .t { flex: 1; background: #eef1f6; padding: 10px 14px; }
+.pdoc b, .pdoc h1, .pdoc h2, .pdoc th { font-weight: 700; }
+.pdoc .pr { color: #c8962e; font-weight: 800; }
+.pd-notes { list-style: none; margin: 0; padding: 14px 18px; background: #faf6ea; border-inline-start: 4px solid #c8962e; }
+.pd-notes li { margin: 7px 0; break-inside: avoid; }
+.pd-notes li::before { content: "◆"; color: #c8962e; margin-inline-end: 10px; font-size: 11px; }
+.pd-text p { margin: 0 0 8px; white-space: pre-wrap; }
+.pd-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pd-kpi { background: #eef1f6; padding: 10px 12px; border-top: 4px solid #1f3a5c; }
+.pd-kpi small { display: block; color: #5b6575; font-weight: 600; }
+.pd-kpi b { font-size: 18px; color: #1f3a5c; }
+.pd-kpi.good b { color: #1f8a57; } .pd-kpi.hot b { color: #c6382a; }
+.pd-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.pd-table th { background: #1f3a5c; color: #fff; padding: 8px 10px; text-align: start; font-weight: 700; }
+.pd-table td { padding: 8px 10px; border-bottom: 1px solid #e3e7ee; }
+.pd-table tbody tr:nth-child(even) td { background: #f5f7fa; }
+.pd-table tfoot td { font-weight: 800; border-top: 2px solid #c8962e; border-bottom: 0; }
+.pd-table .n { text-align: end; white-space: nowrap; }
+.pd-empty { color: #8a93a3; margin: 0; }
+.pd-foot { margin-top: 36px; padding-top: 10px; border-top: 1px solid #dde2ea; text-align: center; color: #8a93a3; font-size: 12px; }
+

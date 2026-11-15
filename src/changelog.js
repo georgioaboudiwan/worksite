@@ -1,5 +1,13 @@
 export const CHANGELOG = [
   {
+    version: '1.6.1',
+    date: '2026-11-15',
+    items: [
+      { en: 'Export PDF now creates a real PDF file on the server, then lets you share it (WhatsApp, Files, Print) or open it. Works from the Home Screen app on iPhone.', ar: 'تصدير PDF صار يعمل ملف PDF حقيقي ويخلّيك تشاركه (واتساب، الملفات، طباعة) أو تفتحه. بيشتغل عالآيفون من الشاشة الرئيسية.' },
+      { en: 'Sharper title at the top of each page.', ar: 'العنوان فوق صار أوضح.' }
+    ]
+  },
+  {
     version: '1.6.0',
     date: '2026-11-15',
     items: [

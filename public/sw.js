@@ -1,5 +1,5 @@
-const CACHE = 'worksite-v13';
-const SHELL = ['./', 'index.html', 'styles.css', 'manifest.webmanifest',
+const CACHE = 'worksite-v15';
+const SHELL = ['./', 'index.html', 'styles.css', 'pdoc.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/util.js', 'js/i18n.js', 'js/docs.js', 'icons/icon.svg', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {

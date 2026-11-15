@@ -17,6 +17,9 @@ APP_URL = "https://worksite.aboudiwangeorgio1.workers.dev"
 [triggers]
 crons = ["*/10 * * * *", "0 6 * * *"]
 
+[browser]
+binding = "BROWSER"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "worksite"

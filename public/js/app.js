@@ -759,7 +759,7 @@ function viewSite() {
       h('button', { class: 'btn ghost sm', onclick: () => editSiteTxn({ site_id: s.id, kind: 'expense' }) }, icon('plus'), ' ', t('addExpense')),
       h('button', { class: 'btn ghost sm', onclick: () => editSiteTxn({ site_id: s.id, kind: 'income' }) }, icon('money'), ' ', t('addIncome')),
       h('button', { class: 'btn ghost sm', onclick: () => { S.view = 'planner'; S.period = 'week'; S.anchor = today(); S.brush = s.id; S.scrollToday = true; render(); } }, icon('planner'), ' ', t('assignSite')),
-      h('button', { class: 'btn ghost sm', onclick: () => printDoc(siteReport(s), `${s.name} - ${periodLabel()}`) }, icon('pdf'), ' ', t('reportPdf'))),
+      h('button', { class: 'btn ghost sm', onclick: () => exportPdf(siteReport(s), `${s.name} - ${periodLabel()}`) }, icon('pdf'), ' ', t('reportPdf'))),
     periodBar(),
     h('div', { class: 'kpis' },
       kpi(t('income'), usd(st.income), null, 'good'), kpi(t('labor'), usd(st.labor)),
@@ -773,6 +773,31 @@ function viewSite() {
           h('span', { class: 'pl-main' }, h('b', null, x.kind === 'income' ? t('income') : (x.category ? (t(x.category) !== x.category ? t(x.category) : x.category) : t('expenses'))), h('small', { class: 'muted' }, [dayLabel(x.day), x.note].filter(Boolean).join(' · '))),
           h('span', { class: 'pl-amt' }, h('b', { class: x.kind === 'income' ? 'good-t' : '' }, (x.kind === 'income' ? '+' : '−') + usd(x.amount)), x.currency === 'LBP' && h('small', { class: 'muted block' }, lbpRaw(x.lbp_amount)))))) : empty(t('noData')))),
     fab(t('addExpense'), () => editSiteTxn({ site_id: s.id, kind: 'expense' })));
+}
+
+async function exportPdf(content, title) {
+  if (S.store.demo) return printDoc(content, title);
+  toast(t('pdfPreparing'));
+  let blob;
+  try {
+    const res = await fetch('/api/pdf', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, content }) });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || t('error')); }
+    blob = await res.blob();
+  } catch (err) {
+    fail(err);
+    return printDoc(content, title);
+  }
+  const name = `${String(title || 'Worksite').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Worksite'}.pdf`;
+  const file = new File([blob], name, { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const canShare = !!navigator.canShare?.({ files: [file] });
+  const open = h('a', { class: 'btn ghost wide', href: url, download: name, target: '_blank', rel: 'noopener' }, icon('eye'), ' ', t('pdfOpen'));
+  const body = h('form', { class: 'form' }, h('div', { class: 'pdf-ready' }, icon('pdf'), h('b', null, name), h('small', { class: 'muted' }, `${Math.max(1, Math.round(blob.size / 1024))} KB`)), open);
+  sheet(t('pdfReady'), body, async () => {
+    if (canShare) { try { await navigator.share({ files: [file], title }); } catch (err) { if (err?.name !== 'AbortError') throw err; } }
+    else open.click();
+  }, null, { saveLabel: canShare ? t('share') : t('pdfOpen') });
+  setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
 }
 
 function companyHeader(subtitle) {
@@ -868,9 +893,9 @@ function viewDoc() {
     h('button', { class: 'icon-btn flip', 'aria-label': 'back', onclick: async () => { await saveDocNow(); S.view = 'docs'; S.docDraft = null; render(); } }, icon('back')),
     h('div', { class: 'wh-main' }, bind(d, 'title', { class: 'title-input', maxlength: '160', 'aria-label': t('docTitle') }), h('small', { class: 'muted', id: 'doc-status' }, d.id ? t('savedAuto') : '')),
     h('button', { class: 'icon-btn' + (S.docPreview ? ' on' : ''), 'aria-label': t('preview'), onclick: () => { S.docPreview = !S.docPreview; render(); } }, icon('eye')),
-    h('button', { class: 'icon-btn', 'aria-label': t('exportPdf'), onclick: async () => { await saveDocNow(); printDoc(c, d.title); } }, icon('pdf')));
+    h('button', { class: 'icon-btn', 'aria-label': t('exportPdf'), onclick: async () => { await saveDocNow(); exportPdf(c, d.title); } }, icon('pdf')));
   if (S.docPreview) return h('div', { class: 'view' }, top, h('div', { class: 'doc-preview' }, renderDoc(c)),
-    h('button', { class: 'btn wide', onclick: async () => { await saveDocNow(); printDoc(c, d.title); } }, icon('pdf'), ' ', t('exportPdf')));
+    h('button', { class: 'btn wide', onclick: async () => { await saveDocNow(); exportPdf(c, d.title); } }, icon('pdf'), ' ', t('exportPdf')));
 
   const head = h('div', { class: 'card form' }, h('h3', null, t('docHeader')),
     field(t('company'), bind(c.header, 'company', { maxlength: '160' })),
@@ -893,7 +918,7 @@ function viewDoc() {
   return h('div', { class: 'view narrow' }, top, head, secs,
     h('button', { class: 'btn ghost wide', onclick: () => restructure(() => c.sections.push({ title: '', kind: 'numbered', items: [{ text: '' }] })) }, icon('plus'), ' ', t('addSection')),
     h('div', { class: 'actionrow' },
-      h('button', { class: 'btn', onclick: async () => { await saveDocNow(); printDoc(c, d.title); } }, icon('pdf'), ' ', t('exportPdf')),
+      h('button', { class: 'btn', onclick: async () => { await saveDocNow(); exportPdf(c, d.title); } }, icon('pdf'), ' ', t('exportPdf')),
       h('button', { class: 'btn ghost', onclick: async () => { await saveDocNow(); const copy = JSON.parse(JSON.stringify(d)); delete copy.id; copy.title = `${d.title} (2)`; S.docDraft = copy; render(); queueDocSave(); } }, icon('copy'), ' ', t('duplicate')),
       d.id && h('button', { class: 'btn danger ghost', onclick: async () => {
         if (!confirm(t('confirmDelete'))) return;
@@ -1079,10 +1104,10 @@ function exportCsv() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function sheet(title, form, onSave, onDelete) {
+function sheet(title, form, onSave, onDelete, opts = {}) {
   const close = () => { wrap.classList.remove('show'); document.removeEventListener('keydown', esc); setTimeout(() => { wrap.remove(); if (updatePending) checkUpdate(); }, 200); };
   const esc = ev => ev.key === 'Escape' && close();
-  const saveBtn = h('button', { class: 'btn', type: 'submit' }, t('save'));
+  const saveBtn = h('button', { class: 'btn', type: 'submit' }, opts.saveLabel || t('save'));
   form.addEventListener('submit', async ev => {
     ev.preventDefault();
     if (!form.reportValidity()) return;

@@ -41,7 +41,7 @@ const STR = {
     preview: 'Preview', exportPdf: 'Export PDF', duplicate: 'Duplicate', saving: 'Saving…', savedAuto: 'Saved', reportPdf: 'PDF report', siteReport: 'Project report', summary: 'Summary',
     notifications: 'Notifications', pushHint: 'Get a notification on payday and when a foreman marks attendance.', pushEnable: 'Turn on notifications', pushOn: 'Notifications are on for this phone.', pushOff: 'Turn off', pushTest: 'Send a test', pushSent: 'Test sent',
     pushDenied: 'Notifications are blocked. Allow them in the phone settings for this app.', pushInstallFirst: 'On iPhone, add the app to your Home Screen first (Share → Add to Home Screen), then open it from there.', pushUnsupported: 'This browser does not support notifications.',
-    offlineShort: 'Offline', pendingSync: '{n} to sync', synced: 'Synced', syncFailed: '{n} changes were rejected', savedOffline: 'Saved on the phone, will sync', refreshed: 'Up to date', foreman: 'Foreman', noMembers: 'No foremen yet', haveInvite: 'Invite code (foremen only)', notAllowed: 'Not allowed', whatsNew: "What's new", version: 'Version', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
+    offlineShort: 'Offline', pendingSync: '{n} to sync', synced: 'Synced', syncFailed: '{n} changes were rejected', savedOffline: 'Saved on the phone, will sync', refreshed: 'Up to date', pdfPreparing: 'Preparing PDF…', pdfReady: 'PDF ready', pdfOpen: 'Open', foreman: 'Foreman', noMembers: 'No foremen yet', haveInvite: 'Invite code (foremen only)', notAllowed: 'Not allowed', whatsNew: "What's new", version: 'Version', changePassword: 'Change password', currentPassword: 'Current password', newPassword: 'New password'
   },
   ar: {
     app: 'ورشتي', tagline: 'العمّال، الأيام والدفعات — بمكان واحد',
@@ -85,7 +85,7 @@ const STR = {
     preview: 'معاينة', exportPdf: 'تصدير PDF', duplicate: 'نسخة', saving: 'عم يحفظ…', savedAuto: 'محفوظ', reportPdf: 'تقرير PDF', siteReport: 'تقرير المشروع', summary: 'الملخّص',
     notifications: 'الإشعارات', pushHint: 'وصلك إشعار يوم القبض ولمّا رئيس الورشة يسجّل الحضور.', pushEnable: 'شغّل الإشعارات', pushOn: 'الإشعارات شغّالة على هالتلفون.', pushOff: 'طفّي', pushTest: 'ابعت تجربة', pushSent: 'انبعتت التجربة',
     pushDenied: 'الإشعارات ممنوعة. اسمح فيها من إعدادات التلفون لهالتطبيق.', pushInstallFirst: 'عالآيفون، زيد التطبيق عالشاشة الرئيسية أول (مشاركة ← إضافة إلى الشاشة الرئيسية) وافتحو من هونيك.', pushUnsupported: 'هالمتصفح ما بيدعم الإشعارات.',
-    offlineShort: 'بلا إنترنت', pendingSync: '{n} بانتظار المزامنة', synced: 'تمت المزامنة', syncFailed: 'انرفض {n} تعديل', savedOffline: 'انحفظ عالتلفون، رح يتزامن', refreshed: 'محدّث', foreman: 'رئيس ورشة', noMembers: 'ما في رؤساء ورش بعد', haveInvite: 'رمز الدعوة (لرؤساء الورش)', notAllowed: 'ممنوع', whatsNew: 'شو الجديد', version: 'نسخة', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
+    offlineShort: 'بلا إنترنت', pendingSync: '{n} بانتظار المزامنة', synced: 'تمت المزامنة', syncFailed: 'انرفض {n} تعديل', savedOffline: 'انحفظ عالتلفون، رح يتزامن', refreshed: 'محدّث', pdfPreparing: 'عم يحضّر الـ PDF…', pdfReady: 'الـ PDF جاهز', pdfOpen: 'فتح', foreman: 'رئيس ورشة', noMembers: 'ما في رؤساء ورش بعد', haveInvite: 'رمز الدعوة (لرؤساء الورش)', notAllowed: 'ممنوع', whatsNew: 'شو الجديد', version: 'نسخة', changePassword: 'تغيير كلمة السر', currentPassword: 'كلمة السر الحالية', newPassword: 'كلمة السر الجديدة'
   }
 };
 
