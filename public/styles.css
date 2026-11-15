@@ -434,3 +434,47 @@ html:not(.booting) .splash { opacity: 0; visibility: hidden; pointer-events: non
   backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%); border-bottom: 1px solid var(--glass-line); }
 .top h1 { font-weight: 800; letter-spacing: 0; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 .top { border-bottom: 0 !important; }
+
+.cb.paid::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--text); opacity: .55; }
+.cb.pend { opacity: .45; outline: 2px dashed var(--hot); outline-offset: -2px; }
+.cb.sel { outline: 3px solid var(--accent); outline-offset: 1px; z-index: 1; }
+.daycard.paid { opacity: .85; }
+.daycard.pend { opacity: .6; border-style: dashed; }
+.daycard button:disabled, .seg button:disabled { opacity: .45; cursor: not-allowed; }
+.daycard.selrow { flex-direction: row; align-items: center; gap: 12px; text-align: start; font: inherit; color: inherit; cursor: pointer; }
+.daycard.selrow.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+.daycard.selrow .wc-main { display: flex; flex-direction: column; min-width: 0; }
+.selbox { width: 26px; height: 26px; flex: none; border-radius: 8px; border: 2px solid var(--line); display: grid; place-items: center; color: var(--accent-ink); }
+.selrow.sel .selbox { background: var(--accent); border-color: var(--accent); }
+.selbox .ico { width: 18px; height: 18px; }
+.sel-hint { margin: 0; font-size: 13px; }
+.btn.on { border-color: var(--accent); color: var(--accent-t); }
+.selbar { position: fixed; inset-inline: 12px; bottom: calc(96px + var(--safe-b, 0px)); z-index: 30; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 20px; border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  background: color-mix(in srgb, var(--card) 82%, transparent); backdrop-filter: blur(22px) saturate(1.6); -webkit-backdrop-filter: blur(22px) saturate(1.6); box-shadow: 0 14px 40px rgba(0,0,0,.22); max-width: 720px; margin-inline: auto; }
+@media (min-width: 900px) { .selbar { bottom: 24px; inset-inline-start: 280px; } }
+.sb-top { display: flex; align-items: center; gap: 8px; } .sb-top b { flex: 1; }
+.sb-acts { display: flex; gap: 6px; flex-wrap: wrap; } .sb-acts .btn { flex: 1 1 auto; justify-content: center; }
+.sb-acts .btn.full, .sb-acts .btn.half { background: var(--good); color: #06281b; border-color: transparent; }
+.sb-acts .btn.absent { background: color-mix(in srgb, var(--hot) 70%, transparent); color: #2e0703; border-color: transparent; }
+.sb-acts .btn.planned { border: 2px solid var(--plan); color: var(--plan); background: transparent; }
+.sb-acts .btn:disabled { opacity: .4; }
+.has-sel main { padding-bottom: calc(240px + var(--safe-b)) !important; }
+.settle-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 42vh; overflow: auto; }
+.settle-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; }
+.settle-list .check { flex: 1; min-width: 0; }
+.settle-list .amt { width: 110px; flex: none; text-align: end; }
+.banner.warn { color: var(--hot); background: color-mix(in srgb, var(--hot) 10%, transparent); display: flex; flex-direction: column; gap: 8px; }
+.banner.warn p { margin: 0; }
+.approvals { border-inline-start: 4px solid var(--hot); }
+.approvals .plist li { flex-wrap: wrap; }
+.scope { margin-bottom: 2px; }
+.loglist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.loglist li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.loglist li:last-child { border-bottom: 0; }
+.lg-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.lg-d { margin: 4px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.log.login_failed b, .log.delete b, .log.delete_approved b { color: var(--hot); }
+.log.settle b { color: var(--good); }
+.settle-list .amt { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); font-size: 16px; font-weight: 700; outline: none; }
+.settle-list .amt:focus { border-color: var(--accent); }
+.sb-acts .btn.danger.ghost { background: transparent; border: 1px solid var(--hot); }

@@ -10,7 +10,7 @@ const TZ = 'Asia/Beirut';
 const enc = new TextEncoder();
 
 const TABLES = {
-  workers: { fields: ['name', 'phone', 'trade', 'daily_rate', 'active', 'notes'], required: ['name'] },
+  workers: { fields: ['name', 'phone', 'trade', 'daily_rate', 'active', 'notes', 'assigned_to'], required: ['name'] },
   sites: { fields: ['name', 'location', 'client', 'active'], required: ['name'] },
   entries: { fields: ['worker_id', 'site_id', 'day', 'status', 'days', 'hours', 'rate', 'note'], required: ['worker_id', 'day'] },
   payments: { fields: ['worker_id', 'paid_on', 'kind', 'amount', 'currency', 'lbp_amount', 'lbp_rate', 'method', 'note'], required: ['worker_id', 'paid_on', 'amount'] },
@@ -22,9 +22,12 @@ const BOOL = new Set(['active', 'weekly_email']);
 const NUM = new Set(['daily_rate', 'days', 'hours', 'rate', 'amount', 'lbp_amount', 'lbp_rate', 'hours_per_day', 'week_start', 'payday', 'overtime_multiplier']);
 const ID_RE = /^[0-9a-f-]{36}$/;
 const FOREMAN_BIZ = ['name', 'hours_per_day', 'period', 'week_start', 'lang'];
-const FOREMAN_WORKER = ['id', 'name', 'trade', 'phone', 'active'];
+const FOREMAN_WORKER = ['id', 'name', 'trade', 'phone', 'active', 'assigned_to'];
+const METHODS = ['cash', 'transfer', 'whish', 'omt', 'other'];
+const DATE_RE = /^\d{4}-[01]\d-[0-3]\d$/;
+const LOCKED = 'Already paid. Only the administrator can change it.';
 const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^updates\.push\.services\.mozilla\.com$/, /^web\.push\.apple\.com$/, /\.push\.apple\.com$/, /\.notify\.windows\.com$/];
-const STATUS_AR = { worked: 'اشتغل', planned: 'مخطط', absent: 'غايب' };
+const STATUS_AR = { worked: 'حاضر', planned: 'مخطط', absent: 'غائب' };
 const STATUS_EN = { worked: 'worked', planned: 'planned', absent: 'absent' };
 
 class HttpError extends Error {
@@ -137,7 +140,7 @@ function clean(kind, body, partial) {
       else if (NUM.has(f)) { v = Number(v); if (!Number.isFinite(v)) throw new HttpError(400, `Invalid ${f}`); }
       else if (typeof v !== 'string') throw new HttpError(400, `Invalid ${f}`);
       else v = v.trim();
-      if ((f === 'worker_id' || f === 'site_id') && !ID_RE.test(v)) throw new HttpError(400, `Invalid ${f}`);
+      if ((f === 'worker_id' || f === 'site_id' || f === 'assigned_to') && !ID_RE.test(v)) throw new HttpError(400, `Invalid ${f}`);
     }
     out[f] = v;
   }
@@ -157,14 +160,72 @@ function shape(r, user) {
   return r;
 }
 
-function insertRow(env, owner, kind, data, upsertDay, clientId) {
+const isAdmin = (env, user) => !!(user && env.ADMIN_EMAIL && user.email.toLowerCase() === env.ADMIN_EMAIL.toLowerCase());
+
+function logIt(env, ctx, user, owner, action, kind, rowId, detail, ip) {
+  let d = detail == null ? null : JSON.stringify(detail);
+  if (d && d.length > 4000) d = d.slice(0, 3990) + '…';
+  ctx.waitUntil(env.DB.prepare('INSERT INTO audit (owner_id, user_id, email, action, kind, row_id, detail, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(owner ?? null, user?.id ?? null, user?.email ?? null, action, kind ?? null, rowId ?? null, d, ip ?? null).run()
+    .catch(err => console.error('audit', err?.message)));
+}
+
+async function teamOf(env, owner) {
+  const [p, m] = await env.DB.batch([
+    env.DB.prepare('SELECT id, email FROM users WHERE id = ?').bind(owner),
+    env.DB.prepare('SELECT m.user_id AS id, u.email, m.role FROM members m JOIN users u ON u.id = m.user_id WHERE m.owner_id = ? ORDER BY m.created_at').bind(owner)
+  ]);
+  return [...p.results.map(r => ({ ...r, role: 'main' })), ...m.results];
+}
+
+async function checkAssignee(env, owner, id) {
+  if (!id) return;
+  const team = await teamOf(env, owner);
+  if (!team.some(m => m.id === id)) throw new HttpError(400, 'Invalid assigned_to');
+}
+
+const visibleTo = (user, w) => user.role !== 'foreman' || !w.assigned_to || w.assigned_to === user.id;
+
+async function guard(env, user, owner, kind, id, op, admin) {
+  const row = await env.DB.prepare(`SELECT * FROM ${kind} WHERE id = ? AND owner_id = ?`).bind(id, owner).first();
+  if (!row) throw new HttpError(404, 'Not found');
+  if (kind === 'entries' && user.role === 'foreman') {
+    const w = await env.DB.prepare('SELECT assigned_to FROM workers WHERE id = ? AND owner_id = ?').bind(row.worker_id, owner).first();
+    if (!w || !visibleTo(user, w)) throw new HttpError(403, 'Not allowed');
+    if (row.del_by) throw new HttpError(409, 'Waiting for the owner to approve the deletion');
+  }
+  if (admin) return row;
+  if ((kind === 'entries' || kind === 'adjustments') && row.paid_by) throw new HttpError(423, LOCKED);
+  if (kind === 'payments' && row.until) throw new HttpError(423, LOCKED);
+  if (kind === 'workers' && op === 'delete') {
+    const paid = await env.DB.prepare('SELECT 1 FROM entries WHERE worker_id = ? AND owner_id = ? AND paid_by IS NOT NULL LIMIT 1').bind(id, owner).first();
+    if (paid) throw new HttpError(423, 'This worker has paid days. Only the administrator can delete them.');
+  }
+  return row;
+}
+
+async function removeEntries(env, user, owner, ids, admin) {
+  if (!ids.length) return { deleted: [], pending: [] };
+  const q = ids.map(() => '?').join(',');
+  if (user.role === 'foreman') {
+    const { results } = await env.DB.prepare(`UPDATE entries SET del_by = ?, del_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      WHERE owner_id = ? AND id IN (${q}) AND paid_by IS NULL AND del_by IS NULL
+      AND worker_id IN (SELECT id FROM workers WHERE owner_id = ? AND (assigned_to IS NULL OR assigned_to = ?)) RETURNING *`)
+      .bind(user.id, owner, ...ids, owner, user.id).all();
+    return { deleted: [], pending: results };
+  }
+  const { results } = await env.DB.prepare(`DELETE FROM entries WHERE owner_id = ? AND id IN (${q})${admin ? '' : ' AND paid_by IS NULL'} RETURNING *`).bind(owner, ...ids).all();
+  return { deleted: results, pending: [] };
+}
+
+function insertRow(env, owner, kind, data, upsertDay, clientId, admin) {
   const id = clientId && ID_RE.test(clientId) ? clientId : crypto.randomUUID();
   const cols = ['id', 'owner_id', ...Object.keys(data)];
   const vals = [id, owner, ...Object.values(data)];
   let sql = `INSERT INTO ${kind} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')}) ON CONFLICT(id) DO NOTHING`;
   if (upsertDay) {
     const upd = Object.keys(data).filter(k => !['worker_id', 'day'].includes(k)).map(k => `${k} = excluded.${k}`).join(', ');
-    sql += ` ON CONFLICT(worker_id, day) DO UPDATE SET ${upd} WHERE ${kind}.owner_id = excluded.owner_id`;
+    sql += ` ON CONFLICT(worker_id, day) DO UPDATE SET ${upd}, del_by = NULL, del_at = NULL WHERE ${kind}.owner_id = excluded.owner_id${admin ? '' : ` AND ${kind}.paid_by IS NULL`}`;
   }
   return env.DB.prepare(sql + ' RETURNING *').bind(...vals);
 }
@@ -172,15 +233,17 @@ function insertRow(env, owner, kind, data, upsertDay, clientId) {
 async function workerRates(env, owner, ids) {
   const uniq = [...new Set(ids)];
   if (!uniq.length) return new Map();
-  const { results } = await env.DB.prepare(`SELECT id, daily_rate FROM workers WHERE owner_id = ? AND id IN (${uniq.map(() => '?').join(',')})`).bind(owner, ...uniq).all();
-  return new Map(results.map(r => [r.id, r.daily_rate]));
+  const { results } = await env.DB.prepare(`SELECT id, daily_rate, assigned_to FROM workers WHERE owner_id = ? AND id IN (${uniq.map(() => '?').join(',')})`).bind(owner, ...uniq).all();
+  return new Map(results.map(r => [r.id, r]));
 }
 
 async function prepareEntries(env, user, rows) {
   const rates = await workerRates(env, user.owner, rows.map(r => r.worker_id));
   return rows.map(r => {
-    if (!rates.has(r.worker_id)) throw new HttpError(400, 'Invalid worker_id');
-    if (user.role === 'foreman' || r.rate == null) r.rate = rates.get(r.worker_id);
+    const w = rates.get(r.worker_id);
+    if (!w) throw new HttpError(400, 'Invalid worker_id');
+    if (!visibleTo(user, w)) throw new HttpError(403, 'This worker is assigned to someone else');
+    if (user.role === 'foreman' || r.rate == null) r.rate = w.daily_rate;
     return r;
   });
 }
@@ -272,7 +335,15 @@ async function notifyAttendance(env, user, rows) {
   const sn = id => ss.find(x => x.id === id)?.name;
   const label = r => `${wn(r.worker_id)}: ${(ar ? STATUS_AR : STATUS_EN)[r.status] || r.status}${r.status === 'worked' && r.days !== 1 ? ` (${r.days})` : ''}${sn(r.site_id) ? ` · ${sn(r.site_id)}` : ''}`;
   const body = worked.length === 1 ? label(worked[0]) : `${worked.slice(0, 4).map(label).join('\n')}${worked.length > 4 ? `\n+${worked.length - 4}` : ''}`;
-  await sendPush(env, await ownerIds(env, user.owner), { title: ar ? `رئيس الورشة سجّل (${worked[0].day})` : `Foreman update (${worked[0].day})`, body, url: '/' });
+  await sendPush(env, await ownerIds(env, user.owner), { title: ar ? `تحديث الحضور من رئيس الورشة (${worked[0].day})` : `Foreman update (${worked[0].day})`, body, url: '/' });
+}
+
+async function notifyDeleteRequest(env, user, n) {
+  const biz = await env.DB.prepare('SELECT lang FROM business WHERE owner_id = ?').bind(user.owner).first();
+  const ar = (biz?.lang || 'ar') === 'ar';
+  await sendPush(env, await ownerIds(env, user.owner), ar
+    ? { title: 'طلب حذف بانتظار الموافقة', body: `${user.email}: ${n}`, url: '/' }
+    : { title: 'Deletion waiting for your approval', body: `${user.email}: ${n}`, url: '/' });
 }
 
 async function owedByOwner(env, owner) {
@@ -358,13 +429,14 @@ async function paydayPush(env) {
     const owed = await owedByOwner(env, r.owner_id);
     const ar = (r.lang || 'ar') === 'ar';
     await sendPush(env, await ownerIds(env, r.owner_id), ar
-      ? { title: 'اليوم يوم القبض', body: owed > 0.009 ? `عليك ${money(owed)} للعمّال` : 'ما عليك شي للعمّال', url: '/' }
+      ? { title: 'اليوم يوم الدفع', body: owed > 0.009 ? `المستحق للعمّال: ${money(owed)}` : 'لا يوجد مبلغ مستحق للعمّال', url: '/' }
       : { title: 'Payday today', body: owed > 0.009 ? `You owe ${money(owed)} to your workers` : 'Nothing owed', url: '/' });
     await env.DB.prepare("INSERT INTO weekly_reports (owner_id, week, sent_at) VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT DO NOTHING").bind(r.owner_id, 'push:' + iso).run();
   }
 }
 
 async function weeklyReports(env) {
+  await env.DB.prepare("DELETE FROM audit WHERE at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-365 days')").run().catch(() => {});
   await paydayPush(env).catch(err => console.error('payday push', err?.message));
   if (!env.RESEND_API_KEY) return;
   const { iso, dow } = localDate();
@@ -417,6 +489,7 @@ async function api(req, env, url, ctx) {
     } else {
       await env.DB.prepare("INSERT INTO business (owner_id, lang) VALUES (?, 'ar')").bind(id).run();
     }
+    logIt(env, ctx, { id, email }, invite?.owner_id || id, 'signup', null, null, invite ? { role: invite.role } : null, ip);
     return json({ email }, 201, { 'set-cookie': await createSession(env, id) });
   }
 
@@ -427,7 +500,8 @@ async function api(req, env, url, ctx) {
     await throttle(env, `login:${email}`, 8, 900);
     const u = await env.DB.prepare('SELECT id, pw_hash, pw_salt, pw_iter FROM users WHERE email = ?').bind(email).first();
     const hash = await pbkdf2(String(b.password || ''), u?.pw_salt || 'x'.repeat(22), u?.pw_iter || PBKDF2_ITER);
-    if (!u || !safeEqual(hash, u.pw_hash)) throw new HttpError(401, 'Wrong email or password');
+    if (!u || !safeEqual(hash, u.pw_hash)) { logIt(env, ctx, { id: u?.id, email }, null, 'login_failed', null, null, null, ip); throw new HttpError(401, 'Wrong email or password'); }
+    logIt(env, ctx, { id: u.id, email }, null, 'login', null, null, null, ip);
     await env.DB.prepare('DELETE FROM throttle WHERE key = ?').bind(`login:${email}`).run();
     await env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND expires_at < ?').bind(u.id, Date.now()).run();
     return json({ email }, 200, { 'set-cookie': await createSession(env, u.id) });
@@ -446,6 +520,8 @@ async function api(req, env, url, ctx) {
   if (path === '/api/me' && method === 'GET') return json({ user: user && { email: user.email, role: user.role, primary: user.primary } });
   if (!user) throw new HttpError(401, 'Not signed in');
   const owner = user.owner;
+  const admin = isAdmin(env, user);
+  const log = (action, kind, rowId, detail) => logIt(env, ctx, user, owner, action, kind, rowId, detail, ip);
 
   if (path === '/api/password' && method === 'POST') {
     await throttle(env, `pw:${user.id}`, 5, 3600);
@@ -529,18 +605,21 @@ async function api(req, env, url, ctx) {
   if (path === '/api/data' && method === 'GET') {
     const d = await ownerData(env, owner);
     if (user.role === 'foreman') {
+      const ws = d.workers.filter(w => visibleTo(user, w));
+      const ids = new Set(ws.map(w => w.id));
       return json({
-        role: 'foreman',
+        role: 'foreman', me: user.id,
         biz: pickKeys(d.biz || {}, FOREMAN_BIZ),
-        workers: d.workers.map(w => shape(pickKeys(w, FOREMAN_WORKER))),
+        workers: ws.map(w => shape(pickKeys(w, FOREMAN_WORKER))),
         sites: d.sites.map(s => shape(pickKeys(s, ['id', 'name', 'location', 'active']))),
-        entries: d.entries.map(e => shape(e, user)),
+        entries: d.entries.filter(e => ids.has(e.worker_id)).map(e => shape(e, user)),
         payments: [], adjustments: [], site_txns: []
       });
     }
     return json({
       role: 'owner',
-      primary: user.primary,
+      primary: user.primary, me: user.id, admin,
+      team: await teamOf(env, owner),
       biz: shape(d.biz) || {},
       workers: d.workers.map(r => shape(r)), sites: d.sites.map(r => shape(r)), entries: d.entries.map(r => shape(r)),
       payments: d.payments.map(r => shape(r)), adjustments: d.adjustments.map(r => shape(r)), site_txns: d.site_txns.map(r => shape(r)),
@@ -561,6 +640,7 @@ async function api(req, env, url, ctx) {
     if (!keys.length) throw new HttpError(400, 'Nothing to save');
     const row = await env.DB.prepare(`UPDATE business SET ${keys.map(k => `${k} = ?`).join(', ')} WHERE owner_id = ? RETURNING *`)
       .bind(...keys.map(k => data[k]), owner).first();
+    log('update', 'business', owner, data);
     return json(shape(row));
   }
 
@@ -575,6 +655,7 @@ async function api(req, env, url, ctx) {
       env.DB.prepare('DELETE FROM invites WHERE owner_id = ? AND expires_at < ?').bind(owner, now),
       env.DB.prepare('INSERT INTO invites (code_hash, owner_id, role, expires_at, created_at) VALUES (?, ?, ?, ?, ?)').bind(await sha256(code), owner, role, now + INVITE_DAYS * 864e5, now)
     ]);
+    log('invite', 'members', null, { role });
     return json({ code, role, expires_at: now + INVITE_DAYS * 864e5 }, 201);
   }
 
@@ -595,6 +676,7 @@ async function api(req, env, url, ctx) {
       env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(mm[1]),
       env.DB.prepare("INSERT INTO business (owner_id, lang) VALUES (?, 'ar') ON CONFLICT(owner_id) DO NOTHING").bind(mm[1])
     ]);
+    log('remove', 'members', mm[1], null);
     return json({ ok: true });
   }
 
@@ -610,6 +692,7 @@ async function api(req, env, url, ctx) {
       env.DB.prepare('INSERT INTO members (user_id, owner_id, role) VALUES (?, ?, ?)').bind(user.id, invite.owner_id, invite.role),
       env.DB.prepare('DELETE FROM invites WHERE code_hash = ?').bind(invite.code_hash)
     ]);
+    logIt(env, ctx, user, invite.owner_id, 'join', 'members', user.id, { role: invite.role }, ip);
     return json({ ok: true, role: invite.role });
   }
 
@@ -619,7 +702,95 @@ async function api(req, env, url, ctx) {
       env.DB.prepare('DELETE FROM members WHERE user_id = ?').bind(user.id),
       env.DB.prepare("INSERT INTO business (owner_id, lang) VALUES (?, 'ar') ON CONFLICT(owner_id) DO NOTHING").bind(user.id)
     ]);
+    log('leave', 'members', user.id, null);
     return json({ ok: true });
+  }
+
+  if (path === '/api/settle' && method === 'POST') {
+    ownerOnly(user);
+    const b = await readBody(req);
+    const until = String(b.until || '');
+    const paidOn = b.paid_on ? String(b.paid_on) : localDate().iso;
+    if (!DATE_RE.test(until) || !DATE_RE.test(paidOn)) throw new HttpError(400, 'Invalid date');
+    const items = Array.isArray(b.items) ? b.items : [];
+    if (!items.length || items.length > 200) throw new HttpError(400, 'Bad list');
+    const pm = METHODS.includes(b.method) ? b.method : 'cash';
+    const currency = b.currency === 'LBP' ? 'LBP' : 'USD';
+    const rate = Math.round(Number(b.lbp_rate));
+    if (currency === 'LBP' && !(rate > 0)) throw new HttpError(400, 'Invalid lbp_rate');
+    const note = b.note == null ? null : String(b.note).trim().slice(0, 500) || null;
+    const clean2 = items.map(it => {
+      const amount = Math.round(Number(it.amount) * 100) / 100;
+      if (!ID_RE.test(String(it.worker_id)) || !(amount > 0)) throw new HttpError(400, 'Invalid item');
+      return { worker_id: String(it.worker_id), amount };
+    });
+    if (new Set(clean2.map(i => i.worker_id)).size !== clean2.length) throw new HttpError(400, 'Duplicate worker');
+    const known = await workerRates(env, owner, clean2.map(i => i.worker_id));
+    if (known.size !== clean2.length) throw new HttpError(400, 'Invalid worker_id');
+    const stmts = [];
+    const out = [];
+    for (const it of clean2) {
+      const pid = crypto.randomUUID();
+      out.push({ ...it, id: pid });
+      stmts.push(
+        env.DB.prepare(`INSERT INTO payments (id, owner_id, worker_id, paid_on, kind, amount, currency, lbp_amount, lbp_rate, method, note, until)
+          VALUES (?, ?, ?, ?, 'wage', ?, ?, ?, ?, ?, ?, ?)`).bind(pid, owner, it.worker_id, paidOn, it.amount, currency,
+          currency === 'LBP' ? Math.round(it.amount * rate) : null, currency === 'LBP' ? rate : null, pm, note, until),
+        env.DB.prepare("UPDATE entries SET paid_by = ? WHERE owner_id = ? AND worker_id = ? AND day <= ? AND paid_by IS NULL AND del_by IS NULL AND status = 'worked'").bind(pid, owner, it.worker_id, until),
+        env.DB.prepare('UPDATE adjustments SET paid_by = ? WHERE owner_id = ? AND worker_id = ? AND day <= ? AND paid_by IS NULL').bind(pid, owner, it.worker_id, until));
+    }
+    await env.DB.batch(stmts);
+    log('settle', 'payments', null, { until, paid_on: paidOn, currency, method: pm, items: out });
+    return json({ ok: true, payments: out.length }, 201);
+  }
+
+  if (path === '/api/entries/remove' && method === 'POST') {
+    const b = await readBody(req);
+    const ids = Array.isArray(b.ids) ? [...new Set(b.ids.map(String))] : [];
+    if (!ids.length || ids.length > 500 || !ids.every(i => ID_RE.test(i))) throw new HttpError(400, 'Bad list');
+    const r = await removeEntries(env, user, owner, ids, admin);
+    if (r.deleted.length) log('delete', 'entries', null, { rows: r.deleted });
+    if (r.pending.length) log('delete_request', 'entries', null, { rows: r.pending });
+    if (r.pending.length) ctx.waitUntil(notifyDeleteRequest(env, user, r.pending.length).catch(err => console.error('notify', err?.message)));
+    return json({ deleted: r.deleted.map(x => x.id), pending: r.pending.map(x => shape(x, user)), skipped: ids.length - r.deleted.length - r.pending.length });
+  }
+
+  if (path === '/api/entries/review' && method === 'POST') {
+    ownerOnly(user);
+    const b = await readBody(req);
+    const ids = Array.isArray(b.ids) ? [...new Set(b.ids.map(String))] : [];
+    if (!ids.length || ids.length > 500 || !ids.every(i => ID_RE.test(i))) throw new HttpError(400, 'Bad list');
+    const q = ids.map(() => '?').join(',');
+    const sql = b.approve
+      ? `DELETE FROM entries WHERE owner_id = ? AND id IN (${q}) AND del_by IS NOT NULL AND paid_by IS NULL RETURNING *`
+      : `UPDATE entries SET del_by = NULL, del_at = NULL WHERE owner_id = ? AND id IN (${q}) AND del_by IS NOT NULL RETURNING *`;
+    const { results } = await env.DB.prepare(sql).bind(owner, ...ids).all();
+    log(b.approve ? 'delete_approved' : 'delete_rejected', 'entries', null, { rows: results });
+    return json({ ids: results.map(r => r.id), rows: b.approve ? [] : results.map(r => shape(r)) });
+  }
+
+  if (path === '/api/admin/logs' && method === 'GET') {
+    if (!admin) throw new HttpError(403, 'Not allowed');
+    const before = Number(url.searchParams.get('before')) || 0;
+    const { results } = await env.DB.prepare(`SELECT a.id, a.owner_id, a.user_id, a.email, a.action, a.kind, a.row_id, a.detail, a.ip, a.at, b.name AS biz, ou.email AS owner_email
+      FROM audit a LEFT JOIN business b ON b.owner_id = a.owner_id LEFT JOIN users ou ON ou.id = a.owner_id
+      WHERE (?1 = 0 OR a.id < ?1) ORDER BY a.id DESC LIMIT 100`).bind(before).all();
+    const wids = new Set(), sids = new Set();
+    const walk = o => { if (!o || typeof o !== 'object') return; if (Array.isArray(o)) return o.forEach(walk); if (o.worker_id) wids.add(o.worker_id); if (o.site_id) sids.add(o.site_id); Object.values(o).forEach(v => typeof v === 'object' && walk(v)); };
+    results.forEach(r => { try { r.detail = r.detail ? JSON.parse(r.detail) : null; } catch { } walk(r.detail); });
+    const names = {};
+    const look = async (t, set) => {
+      const list = [...set].filter(x => ID_RE.test(x)).slice(0, 300);
+      if (!list.length) return;
+      const { results: rs } = await env.DB.prepare(`SELECT id, name FROM ${t} WHERE id IN (${list.map(() => '?').join(',')})`).bind(...list).all();
+      rs.forEach(x => { names[x.id] = x.name; });
+    };
+    await look('workers', wids);
+    await look('sites', sids);
+    const { results: users } = await env.DB.prepare(`SELECT u.id, u.email, u.created_at, COALESCE(m.role, 'main') AS role, COALESCE(m.owner_id, u.id) AS owner_id, b.name AS biz,
+      (SELECT COUNT(*) FROM workers w WHERE w.owner_id = u.id) AS workers
+      FROM users u LEFT JOIN members m ON m.user_id = u.id LEFT JOIN business b ON b.owner_id = COALESCE(m.owner_id, u.id) ORDER BY u.created_at`).all();
+    return json({ logs: results, names, users: before ? undefined : users });
   }
 
   const m = path.match(/^\/api\/(workers|sites|entries|payments|adjustments|site_txns)(?:\/([0-9a-f-]{36}|bulk))?$/);
@@ -633,8 +804,9 @@ async function api(req, env, url, ctx) {
     if (!Array.isArray(b) || b.length > 500) throw new HttpError(400, 'Bad list');
     if (!b.length) return json([]);
     const rows = await prepareEntries(env, user, b.map(r => clean(kind, r)));
-    const res = await env.DB.batch(rows.map((r, i) => insertRow(env, owner, kind, r, true, b[i]?.id)));
+    const res = await env.DB.batch(rows.map((r, i) => insertRow(env, owner, kind, r, true, b[i]?.id, admin)));
     const out = res.flatMap(r => r.results);
+    log('save_many', 'entries', null, { rows: out.map(r => pickKeys(r, ['id', 'worker_id', 'site_id', 'day', 'status', 'days', 'hours'])) });
     if (user.role === 'foreman') ctx.waitUntil(notifyAttendance(env, user, out).catch(err => console.error('notify', err?.message)));
     return json(out.map(r => shape(r, user)));
   }
@@ -643,9 +815,15 @@ async function api(req, env, url, ctx) {
     const body = await readBody(req);
     let data = clean(kind, body);
     if (kind === 'entries') [data] = await prepareEntries(env, user, [data]);
-    let row = await insertRow(env, owner, kind, data, kind === 'entries', body.id).first();
+    if (kind === 'workers') await checkAssignee(env, owner, data.assigned_to);
+    let row = await insertRow(env, owner, kind, data, kind === 'entries', body.id, admin).first();
     if (!row && body.id && ID_RE.test(body.id)) row = await env.DB.prepare(`SELECT * FROM ${kind} WHERE id = ? AND owner_id = ?`).bind(body.id, owner).first();
+    if (!row && kind === 'entries') {
+      const ex = await env.DB.prepare('SELECT paid_by FROM entries WHERE owner_id = ? AND worker_id = ? AND day = ?').bind(owner, data.worker_id, data.day).first();
+      if (ex?.paid_by) throw new HttpError(423, LOCKED);
+    }
     if (!row) throw new HttpError(409, 'Conflict');
+    log('create', kind, row.id, data);
     if (kind === 'entries' && user.role === 'foreman') ctx.waitUntil(notifyAttendance(env, user, [row]).catch(err => console.error('notify', err?.message)));
     return json(shape(row, user), 201);
   }
@@ -653,22 +831,42 @@ async function api(req, env, url, ctx) {
   if (method === 'PUT' && id && id !== 'bulk') {
     const data = clean(kind, await readBody(req), true);
     if (user.role === 'foreman') delete data.rate;
-    if (kind === 'entries' && data.worker_id) await prepareEntries(env, { ...user, role: 'owner' }, [{ ...data, rate: 0 }]);
+    const before = await guard(env, user, owner, kind, id, 'update', admin);
+    if (kind === 'workers' && 'assigned_to' in data) await checkAssignee(env, owner, data.assigned_to);
+    if (kind === 'payments' && before.until && admin) delete data.worker_id;
+    if (kind === 'entries' && data.worker_id) await prepareEntries(env, user, [{ ...data, rate: 0 }]);
     const keys = Object.keys(data);
     if (!keys.length) throw new HttpError(400, 'Nothing to save');
     const row = await env.DB.prepare(`UPDATE ${kind} SET ${keys.map(k => `${k} = ?`).join(', ')} WHERE id = ? AND owner_id = ? RETURNING *`)
       .bind(...keys.map(k => data[k]), id, owner).first();
     if (!row) throw new HttpError(404, 'Not found');
+    log('update', kind, id, { before: pickKeys(before, keys), after: data });
     if (kind === 'entries' && user.role === 'foreman') ctx.waitUntil(notifyAttendance(env, user, [{ ...row }]).catch(err => console.error('notify', err?.message)));
     return json(shape(row, user));
   }
 
   if (method === 'DELETE' && id && id !== 'bulk') {
+    if (kind === 'entries') {
+      const r = await removeEntries(env, user, owner, [id], admin);
+      if (r.deleted.length) log('delete', 'entries', id, r.deleted[0]);
+      else if (r.pending.length) {
+        log('delete_request', 'entries', id, r.pending[0]);
+        ctx.waitUntil(notifyDeleteRequest(env, user, 1).catch(err => console.error('notify', err?.message)));
+        return json({ ok: true, pending: shape(r.pending[0], user) });
+      } else await guard(env, user, owner, kind, id, 'delete', admin);
+      if (!r.deleted.length) throw new HttpError(404, 'Not found');
+      return json({ ok: true });
+    }
+    const before = await guard(env, user, owner, kind, id, 'delete', admin);
     const stmts = [];
+    if (kind === 'payments' && before.until) stmts.push(
+      env.DB.prepare('UPDATE entries SET paid_by = NULL WHERE paid_by = ? AND owner_id = ?').bind(id, owner),
+      env.DB.prepare('UPDATE adjustments SET paid_by = NULL WHERE paid_by = ? AND owner_id = ?').bind(id, owner));
     if (kind === 'sites') stmts.push(env.DB.prepare('UPDATE entries SET site_id = NULL WHERE site_id = ? AND owner_id = ?').bind(id, owner));
     stmts.push(env.DB.prepare(`DELETE FROM ${kind} WHERE id = ? AND owner_id = ?`).bind(id, owner));
     const res = await env.DB.batch(stmts);
     if (!res.at(-1).meta.changes) throw new HttpError(404, 'Not found');
+    log('delete', kind, id, before);
     return json({ ok: true });
   }
 

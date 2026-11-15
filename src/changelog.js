@@ -1,15 +1,28 @@
 export const CHANGELOG = [
   {
+    version: '1.8.0',
+    date: '2026-11-15',
+    items: [
+      { en: 'Pay up to a date: choose the workers and the last day being paid. Those days are marked as paid and locked.', ar: 'الدفع حتى تاريخ: اختيار العمّال وآخر يوم مشمول بالدفع، فتُسجَّل الأيام كمدفوعة وتُقفل.' },
+      { en: 'Each worker shows paid days, unpaid days and the date they are paid until.', ar: 'تظهر لكل عامل الأيام المدفوعة وغير المدفوعة وتاريخ آخر دفع.' },
+      { en: 'Paid days and their payments cannot be edited or deleted, except by the administrator.', ar: 'لا يمكن تعديل الأيام المدفوعة ودفعاتها أو حذفها إلا من قبل المسؤول.' },
+      { en: "Deletions by a foreman wait for the owner's approval and are marked as pending until then.", ar: 'تحتاج عمليات الحذف من رئيس الورشة إلى موافقة المالك، وتظهر بانتظار الموافقة حتى ذلك الحين.' },
+      { en: 'Select several days and workers at once to record or delete attendance in one step.', ar: 'تحديد عدة أيام وعمّال دفعة واحدة لتسجيل الحضور أو حذفه بخطوة واحدة.' },
+      { en: 'Workers can be assigned to a team member, so each person sees and records their own workers.', ar: 'يمكن تعيين العمّال لعضو في الفريق، فيرى كل شخص عمّاله ويسجّل لهم.' },
+      { en: 'Activity log for the administrator, covering every change and sign-in.', ar: 'سجل نشاط للمسؤول يشمل كل التعديلات وعمليات تسجيل الدخول.' },
+      { en: 'Arabic texts rewritten in clear, professional language.', ar: 'إعادة صياغة النصوص العربية بلغة واضحة ومهنية.' }
+    ]
+  },
+  {
     version: '1.7.0',
     date: '2026-11-15',
     items: [
-      { en: 'Partners: invite co-owners (for example your dad and brother). They see and edit the same sites, workers, payments and documents. Foremen are shared too.', ar: 'الشركاء: ادعي شركاء (متل بيّك وخيّك). بيشوفوا وبيعدّلوا نفس الورش والعمّال والدفعات والمستندات.' },
-      { en: 'People who already have an account can join a team with an invite code from the login screen, and leave it from Settings.', ar: 'اللي عندو حساب بيقدر ينضمّ برمز الدعوة من شاشة الدخول، ويترك الفريق من الإعدادات.' },
-      { en: "Partners' changes appear for everyone automatically (every 30 seconds and when the app is reopened).", ar: 'تعديلات الشركاء بتبيّن عند الكل لحالها.' },
-      { en: 'Foreman alerts and payday reminders go to every partner.', ar: 'إشعارات رئيس الورشة ويوم القبض بتوصل لكل الشركاء.' },
-      { en: 'Fixed the app sometimes staying on the loading screen after an update. If loading ever fails, a Try again button appears.', ar: 'تصليح التطبيق لمّا كان يعلق على شاشة التحميل.' },
-      { en: 'Each worker must have a different phone number.', ar: 'كل عامل لازم يكون إلو رقم تلفون مختلف.' },
-      { en: 'Short link: georgioaboudiwan.github.io/worksite opens the app.', ar: 'رابط قصير: georgioaboudiwan.github.io/worksite بيفتح التطبيق.' }
+      { en: 'Partners: invite co-owners who see and edit the same projects, workers, payments and documents.', ar: 'الشركاء: دعوة شركاء يطّلعون على المشاريع والعمّال والدفعات والمستندات نفسها ويعدّلونها.' },
+      { en: 'Users with an existing account can join a team with an invite code from the sign-in screen, and leave it from Settings.', ar: 'يمكن لصاحب الحساب الانضمام إلى فريق برمز دعوة من شاشة تسجيل الدخول، ومغادرته من الإعدادات.' },
+      { en: 'Changes made by partners appear for everyone automatically.', ar: 'تظهر تعديلات الشركاء لدى الجميع تلقائياً.' },
+      { en: 'Foreman updates and payday reminders are sent to every partner.', ar: 'تصل تحديثات رؤساء الورش وتذكير يوم الدفع إلى جميع الشركاء.' },
+      { en: 'Fixed the app occasionally staying on the loading screen after an update.', ar: 'إصلاح توقّف التطبيق أحياناً على شاشة التحميل بعد التحديث.' },
+      { en: 'Each worker must have a unique phone number.', ar: 'يجب أن يكون لكل عامل رقم هاتف مختلف.' }
     ]
   },
   {
@@ -36,7 +49,7 @@ export const CHANGELOG = [
     version: '1.5.1',
     date: '2026-11-15',
     items: [
-      { en: 'New glass tab bar like Ishtirak: drag your finger along it and the glass lens follows, release to open that tab.', ar: 'قائمة زجاجية جديدة متل اشتراك: اسحب إصبعك عليها وفلّت عالقسم اللي بدّك ياه.' },
+      { en: 'New glass tab bar: drag your finger along it and the glass lens follows, release to open that tab.', ar: 'قائمة زجاجية جديدة: اسحب إصبعك عليها وفلّت عالقسم اللي بدّك ياه.' },
       { en: 'The bar stays in place between pages, so the lens slides smoothly to the new tab.', ar: 'القائمة بتضل ثابتة والدائرة بتتزحلق عالقسم الجديد.' }
     ]
   },

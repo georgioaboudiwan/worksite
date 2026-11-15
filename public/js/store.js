@@ -1,7 +1,7 @@
 import { addDays, iso, startOf } from './util.js';
 
 const FIELDS = {
-  workers: ['name', 'phone', 'trade', 'daily_rate', 'active', 'notes'],
+  workers: ['name', 'phone', 'trade', 'daily_rate', 'active', 'notes', 'assigned_to'],
   sites: ['name', 'location', 'client', 'active'],
   entries: ['worker_id', 'site_id', 'day', 'status', 'days', 'hours', 'rate', 'note'],
   payments: ['worker_id', 'paid_on', 'kind', 'amount', 'currency', 'lbp_amount', 'lbp_rate', 'method', 'note'],
@@ -111,7 +111,11 @@ function apiStore() {
       const body = rows.map(r => ({ ...pick(r, FIELDS[kind]), id: r.id || crypto.randomUUID() }));
       return write('POST', `${kind}/bulk`, body, body.map((b, i) => localRow(kind, { ...rows[i], ...b })));
     },
-    remove: (kind, id) => write('DELETE', `${kind}/${id}`, undefined, { ok: true }),
+    remove: (kind, id) => write('DELETE', `${kind}/${id}`, undefined, { ok: true, queued: true }),
+    removeMany: ids => call('POST', 'entries/remove', { ids }),
+    review: (ids, approve) => call('POST', 'entries/review', { ids, approve: !!approve }),
+    settle: body => call('POST', 'settle', body),
+    logs: before => call('GET', 'admin/logs' + (before ? `?before=${encodeURIComponent(before)}` : '')),
     saveDoc: doc => doc.id ? call('PUT', `docs/${doc.id}`, { title: doc.title, content: doc.content }) : call('POST', 'docs', { title: doc.title, content: doc.content }),
     removeDoc: id => call('DELETE', `docs/${id}`),
     pushKey: () => call('GET', 'push/key'),
@@ -198,6 +202,18 @@ function demoStore() {
     async saveBiz(row) { db.biz = { ...db.biz, ...pick(row, BIZ_FIELDS) }; write(db); return clone(db.biz); },
     async save(kind, row) { const r = upsertLocal(kind, row); write(db); return r; },
     async saveMany(kind, rows) { const r = rows.map(x => upsertLocal(kind, x)); write(db); return r; },
+    async removeMany(ids) { const set = new Set(ids); db.entries = db.entries.filter(e => !set.has(e.id)); write(db); return { deleted: ids, pending: [] }; },
+    async review() { return { ids: [], rows: [] }; },
+    async settle(b) {
+      for (const it of b.items) {
+        const pid = uid();
+        db.payments.push({ id: pid, worker_id: it.worker_id, paid_on: b.paid_on, kind: 'wage', amount: it.amount, currency: b.currency, lbp_amount: b.currency === 'LBP' ? Math.round(it.amount * b.lbp_rate) : null, lbp_rate: b.currency === 'LBP' ? b.lbp_rate : null, method: b.method, note: b.note, until: b.until });
+        db.entries.forEach(e => { if (e.worker_id === it.worker_id && e.day <= b.until && !e.paid_by && e.status === 'worked') e.paid_by = pid; });
+        db.adjustments.forEach(a => { if (a.worker_id === it.worker_id && a.day <= b.until && !a.paid_by) a.paid_by = pid; });
+      }
+      write(db);
+      return { ok: true };
+    },
     async remove(kind, id) {
       db[kind] = db[kind].filter(r => r.id !== id);
       if (kind === 'workers') ['entries', 'payments', 'adjustments'].forEach(k => { db[k] = db[k].filter(x => x.worker_id !== id); });
