@@ -116,9 +116,9 @@ main { min-width: 0; padding: 22px 28px 60px; }
 .grid-wrap { overflow: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); max-height: calc(100vh - 230px); }
 .plan { border-collapse: separate; border-spacing: 0; width: 100%; font-variant-numeric: tabular-nums; }
 .plan th, .plan td { border-bottom: 1px solid var(--line); padding: 4px; text-align: center; }
-.plan thead th { position: sticky; top: 0; background: var(--card); z-index: 2; }
-.plan .sticky { position: sticky; inset-inline-start: 0; background: var(--card); z-index: 1; text-align: start; padding-inline: 12px; min-width: 120px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-inline-end: 1px solid var(--line); }
-.plan thead .sticky { z-index: 3; }
+.plan thead th { position: sticky; top: 0; background: var(--card); z-index: 3; }
+.plan .sticky { position: sticky; inset-inline-start: 0; background: var(--card); z-index: 2; text-align: start; padding-inline: 12px; min-width: 120px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-inline-end: 1px solid var(--line); }
+.plan thead .sticky { z-index: 4; }
 .plan .wname { cursor: pointer; font-weight: 700; }
 .plan .n { text-align: end; padding-inline: 10px; white-space: nowrap; font-size: 13px; }
 .plan .tiny { font-size: 11px; color: var(--muted); text-align: center; }
@@ -437,7 +437,7 @@ html:not(.booting) .splash { opacity: 0; visibility: hidden; pointer-events: non
 
 .cb.paid::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--text); opacity: .55; }
 .cb.pend { opacity: .45; outline: 2px dashed var(--hot); outline-offset: -2px; }
-.cb.sel { outline: 3px solid var(--accent); outline-offset: 1px; z-index: 1; }
+.cb.sel { outline: 3px solid var(--accent); outline-offset: -3px; }
 .daycard.paid { opacity: .85; }
 .daycard.pend { opacity: .6; border-style: dashed; }
 .daycard button:disabled, .seg button:disabled { opacity: .45; cursor: not-allowed; }
