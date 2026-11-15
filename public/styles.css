@@ -478,3 +478,5 @@ html:not(.booting) .splash { opacity: 0; visibility: hidden; pointer-events: non
 .settle-list .amt { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); font-size: 16px; font-weight: 700; outline: none; }
 .settle-list .amt:focus { border-color: var(--accent); }
 .sb-acts .btn.danger.ghost { background: transparent; border: 1px solid var(--hot); }
+.kpis.pay .kv { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+.kpis.pay .ks { display: block; font-size: 12px; }

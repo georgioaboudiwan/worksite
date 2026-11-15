@@ -786,10 +786,10 @@ function viewWorker() {
       h('button', { class: 'btn', onclick: () => settleSheet({ worker_id: w.id }) }, t('payUntil'))),
     (() => {
       const pi = payInfo(w.id);
-      return h('div', { class: 'kpis three' },
+      return h('div', { class: 'kpis three pay' },
         kpi(t('paidDays'), daysTxt(pi.paidDays), pi.paidUntil ? `${t('paidUntil')} ${dayLabel(pi.paidUntil)}` : null, 'good'),
         kpi(t('unpaidDays'), daysTxt(pi.unpaidDays), null, pi.unpaidDays > 0 ? 'warn' : ''),
-        kpi(t('responsible'), w.assigned_to ? memberName(w.assigned_to) || '—' : t('everyone')));
+        kpi(t('responsibleShort'), w.assigned_to ? memberName(w.assigned_to) || '—' : t('everyoneShort')));
     })(),
     h('div', { class: 'actionrow' },
       h('button', { class: 'btn ghost sm wa', onclick: () => sendStatement(w) }, icon('chat'), ' ', t('whatsapp')),
