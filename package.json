@@ -3,9 +3,22 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler d1 migrations apply worksite --remote && wrangler deploy"
+    "deploy": "wrangler d1 migrations apply worksite --remote && wrangler deploy",
+    "assets": "npx capacitor-assets generate --android --ios --iconBackgroundColor '#f5a524' --iconBackgroundColorDark '#f5a524' --splashBackgroundColor '#f4f2ee' --splashBackgroundColorDark '#0b0d12'",
+    "sync": "npx cap sync",
+    "android": "npx cap sync android && npx cap open android",
+    "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug",
+    "android:release": "npx cap sync android && cd android && ./gradlew bundleRelease",
+    "ios": "npx cap sync ios && npx cap open ios"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.6.10",
     "wrangler": "4.162.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.6.10",
+    "@capacitor/core": "^7.6.10",
+    "@capacitor/ios": "^7.6.10"
   }
 }

@@ -17,3 +17,13 @@ Add the new version at the top of `src/changelog.js`. After the deploy, the Work
 `npm install`, `npx wrangler d1 migrations apply worksite --local`, `npm run dev`.
 
 Set `ALLOW_SIGNUP = "false"` in `wrangler.toml` to close sign-ups.
+
+## Mobile apps (Android and iPhone)
+
+`android/` and `ios/` are Capacitor projects that open the live site (`server.url` in `capacitor.config.json`), so every deploy reaches the apps without a store update. Icons and splash screens come from `assets/` (`npm run assets`).
+
+Android test build: GitHub → Actions → **Android APK** → Run workflow, then download `worksite-android` (install on the phone, allow "install unknown apps").
+
+Play Store: in Android Studio (`npm run android`) → Build → Generate Signed Bundle, upload the `.aab` to Play Console.
+
+iPhone (Mac with Xcode 15+): `npm install && npm run ios` → pick your team under Signing & Capabilities → Product → Archive → upload to App Store Connect.

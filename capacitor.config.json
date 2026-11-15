@@ -1,0 +1,22 @@
+{
+  "appId": "lb.worksite.app",
+  "appName": "Worksite",
+  "webDir": "public",
+  "server": {
+    "url": "https://worksite.aboudiwangeorgio1.workers.dev",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "backgroundColor": "#f4f2ee",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "adjustMarginsForEdgeToEdge": "auto"
+  },
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": true,
+    "limitsNavigationsToAppBoundDomains": true,
+    "backgroundColor": "#f4f2ee"
+  }
+}
