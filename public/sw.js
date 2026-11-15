@@ -1,4 +1,4 @@
-const CACHE = 'worksite-v19';
+const CACHE = 'worksite-v20';
 const SHELL = ['./', 'index.html', 'styles.css', 'pdoc.css', 'manifest.webmanifest',
   'js/app.js', 'js/store.js', 'js/util.js', 'js/i18n.js', 'js/docs.js', 'icons/icon.svg', 'icons/icon-192.png'];
 

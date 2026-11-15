@@ -172,8 +172,8 @@ function toggleKeys(keys) {
   render();
 }
 
-async function applySel(kind) {
-  const keys = [...S.sel];
+async function applySel(kind, only) {
+  const keys = only || [...S.sel];
   if (!keys.length) return;
   try {
     if (kind === 'delete') {
@@ -254,6 +254,7 @@ function icon(name) {
     phone: 'M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.2 11.4 11.4 0 0 0 3.6.6 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.2.2 2.4.6 3.6a1 1 0 0 1-.3 1z',
     copy: 'M16 1H4a2 2 0 0 0-2 2v14h2V3h12zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11z',
     check: 'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z',
+    close: 'M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z',
     chat: 'M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm-4 7h8v2H8zm0 4h5v2H8z',
     money: 'M3 6h18v12H3zm2 2v8h14V8zm7 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',
     docs: 'M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5zM8 12v2h8v-2zm0 4v2h8v-2z',
@@ -500,28 +501,47 @@ async function paint(w, day) {
   } catch (err) { fail(err); }
 }
 
+function weekStrip(ws) {
+  const r = range('week', S.anchor, S.data.biz.week_start);
+  const ids = new Set(ws.map(w => w.id));
+  return h('div', { class: 'wstrip' }, daysIn(r.start, r.end).map(d => {
+    const n = S.data.entries.filter(e => e.day === d && worked(e) && ids.has(e.worker_id)).length;
+    const dt = toDate(d);
+    return h('button', { class: 'ws-d' + (d === S.anchor ? ' on' : '') + (d === today() ? ' now' : ''), onclick: () => { S.anchor = d; render(); } },
+      h('small', null, t('weekdays')[dt.getDay()]), h('b', null, String(dt.getDate())),
+      h('i', { class: 'ws-bar' }, h('i', { style: { width: ws.length ? `${Math.round(Math.min(1, n / ws.length) * 100)}%` : '0' } })));
+  }));
+}
+
 function plannerDay(ws) {
   const day = S.anchor;
-  const des = S.data.entries.filter(e => e.day === day);
-  const planned = des.filter(e => e.status === 'planned' && !locked(e) && !(fm && e.del_by) && ws.some(w => w.id === e.worker_id));
   const fm = isForeman();
-  return h('div', null,
+  const des = S.data.entries.filter(e => e.day === day);
+  const byW = new Map(des.map(e => [e.worker_id, e]));
+  const cnt = { worked: 0, planned: 0, absent: 0, none: 0 };
+  ws.forEach(w => { const e = byW.get(w.id); if (!e) cnt.none++; else if (worked(e)) cnt.worked++; else cnt[e.status]++; });
+  const todo = ws.filter(w => { const e = byW.get(w.id); return (!e || e.status === 'planned') && !locked(e) && !(fm && e?.del_by); });
+  const pill = (cls, label, n) => h('span', { class: 'dpill ' + cls }, h('b', null, String(n)), label);
+  return h('div', { class: 'dayview' },
+    weekStrip(ws),
+    h('div', { class: 'daysum' },
+      h('div', { class: 'dpills' }, pill('good', t('worked'), cnt.worked), pill('plan', t('planned'), cnt.planned), pill('hot', t('absent'), cnt.absent), pill('', t('notMarked'), cnt.none)),
+      !fm && h('span', { class: 'dcost' }, t('laborCost'), h('b', null, usd(sum(des, e => e.amount))))),
     h('div', { class: 'toolbar' },
-      !fm ? h('span', { class: 'muted' }, `${t('laborCost')}: `, h('b', null, usd(sum(des, e => e.amount)))) : h('span'),
-      h('div', { class: 'tb-actions' }, selectBtn(),
-        planned.length > 0 && !S.sel && h('button', { class: 'btn sm', onclick: () => bulkMark(planned) }, icon('check'), ` ${t('markWorked')} (${planned.length})`))),
+      !S.sel && todo.length > 0 ? h('button', { class: 'btn', onclick: () => applySel('full', todo.map(w => selKey(w.id, day))) }, icon('check'), ` ${t('allPresent', { n: todo.length })}`) : h('span'),
+      h('div', { class: 'tb-actions' }, selectBtn())),
     h('div', { class: 'daylist' }, ws.map(w => {
-      const e = des.find(x => x.worker_id === w.id);
+      const e = byW.get(w.id);
       const key = selKey(w.id, day);
       if (S.sel) {
         return h('button', { class: 'daycard selrow' + (S.sel.has(key) ? ' sel' : ''), onclick: () => toggleKeys([key]) },
           h('span', { class: 'selbox' }, S.sel.has(key) ? icon('check') : ''),
           avatar(w.name),
-          h('span', { class: 'wc-main' }, h('b', null, w.name), h('small', { class: 'muted' }, [e ? entryLabel(e) : '—', e?.paid_by && t('paidTag'), e?.del_by && t('pendingDelete')].filter(Boolean).join(' · '))));
+          h('span', { class: 'wc-main' }, h('b', null, w.name), h('small', { class: 'muted' }, [e ? entryLabel(e) : t('notMarked'), e?.paid_by && t('paidTag'), e?.del_by && t('pendingDelete')].filter(Boolean).join(' · '))));
       }
       const lockedRow = locked(e) || (e?.del_by && fm);
       const cur = !e ? 'none' : e.status === 'worked' ? (e.hours != null ? 'hours' : Number(e.days) === 1 ? 'full' : Number(e.days) === 0.5 ? 'half' : 'hours') : e.status;
-      const opts = [['full', t('full')], ['half', t('half')], ['hours', t('hours')], ['absent', t('absent')]];
+      const opts = [['full', t('full'), 'check'], ['half', t('half'), null], ['hours', t('hours'), null], ['absent', t('absent'), 'close']];
       const siteSel = siteSelect(e?.site_id ?? lastSite(w.id, day));
       siteSel.addEventListener('change', async () => {
         try {
@@ -531,24 +551,29 @@ function plannerDay(ws) {
         } catch (err) { fail(err); }
       });
       if (lockedRow) siteSel.disabled = true;
-      const card = h('div', { class: 'daycard ' + cur + (e?.paid_by ? ' paid' : '') + (e?.del_by ? ' pend' : '') },
+      const tag = e?.del_by ? h('span', { class: 'stag hot' }, t('pendingDelete'))
+        : e?.paid_by ? h('span', { class: 'stag' }, `🔒 ${t('paidTag')}`)
+        : cur === 'planned' ? h('span', { class: 'stag plan' }, t('planned'))
+        : cur === 'none' ? h('span', { class: 'stag' }, t('notMarked'))
+        : !fm && e?.amount ? h('b', { class: 'dc-amt' }, usd(e.amount)) : null;
+      const card = h('div', { class: 'daycard st-' + cur + (e?.paid_by ? ' paid' : '') + (e?.del_by ? ' pend' : '') },
         h('div', { class: 'dc-top' },
           h('div', { class: 'who', onclick: () => !fm && openWorker(w.id) }, avatar(w.name),
-            h('div', null, h('b', null, w.name), h('small', { class: 'muted block' }, fm ? (w.trade || '') : `${w.trade || ''} · ${usd(w.daily_rate)}${t('perDay')}`))),
-          h('b', { class: 'dc-amt' }, e?.del_by ? t('pendingDelete') : e?.paid_by ? `🔒 ${t('paidTag')}` : !fm && e && e.amount ? usd(e.amount) : cur === 'planned' ? t('planned') : '')),
-        h('div', { class: 'dc-row' },
-          h('div', { class: 'seg small wrap' }, opts.map(([k, label]) => h('button', {
-            class: cur === k ? 'on ' + k : '', disabled: lockedRow, onclick: async () => {
-              try {
-                if (k === 'hours') return askHours(w, day, e);
-                await quickSet(w, day, cur === k ? 'planned' : k);
-                render();
-              } catch (err) { fail(err); }
-            }
-          }, k === 'hours' && cur === 'hours' && e ? `${nf.format(e.hours ?? e.days * S.data.biz.hours_per_day)}${t('hoursShort')}` : label))),
-          h('div', { class: 'dc-tools' }, siteSel,
-            h('button', { class: 'icon-btn', 'aria-label': t('edit'), onclick: () => editEntry(w, day) }, icon('edit')))));
-      if (e?.site_id) card.style.borderInlineStartColor = siteColor(e.site_id);
+            h('div', { class: 'who-t' }, h('b', null, w.name), h('small', { class: 'muted block' }, [w.trade, !fm && `${usd(w.daily_rate)}${t('perDay')}`].filter(Boolean).join(' · ') || ' '))),
+          tag),
+        h('div', { class: 'stbtns' }, opts.map(([k, label, ic]) => h('button', {
+          class: 'stb ' + k + (cur === k ? ' on' : ''), disabled: lockedRow, onclick: async () => {
+            try {
+              if (k === 'hours') return askHours(w, day, e);
+              await quickSet(w, day, cur === k ? 'planned' : k);
+              render();
+            } catch (err) { fail(err); }
+          }
+        }, k === 'half' ? h('span', { class: 'stb-i' }, '½') : k === 'hours' ? h('span', { class: 'stb-i' }, cur === 'hours' && e ? `${nf.format(e.hours ?? e.days * S.data.biz.hours_per_day)}${t('hoursShort')}` : t('hoursShort')) : icon(ic),
+          h('span', null, label)))),
+        h('div', { class: 'dc-tools' }, siteSel,
+          h('button', { class: 'icon-btn', 'aria-label': t('edit'), onclick: () => editEntry(w, day) }, icon('edit'))));
+      if (e?.site_id) card.style.setProperty('--site', siteColor(e.site_id));
       return card;
     })));
 }
@@ -609,7 +634,7 @@ function plannerGrid(ws) {
       if (site) btn.style.setProperty('--site', siteColor(site.id));
       return h('td', { class: 'cell ' + (d === today() ? 'now' : '') }, btn);
     });
-    return h('tr', null, h('th', { class: 'sticky wname', onclick: () => S.sel ? toggleKeys(days.map(d => selKey(w.id, d))) : !fm && openWorker(w.id) }, w.name),
+    return h('tr', null, h('th', { class: 'sticky wname', onclick: () => S.sel ? toggleKeys(days.map(d => selKey(w.id, d))) : !fm && openWorker(w.id) }, h('span', { class: 'wn' }, avatar(w.name, 'xs'), h('span', null, w.name))),
       cells, h('td', { class: 'n' }, daysTxt(dsum)), !fm && h('td', { class: 'n' }, usd(asum)));
   });
   const all = [...byKey.values()];
