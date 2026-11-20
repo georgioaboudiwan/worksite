@@ -428,7 +428,7 @@ function cellCode(e) {
   if (e.status === 'planned') return { txt: '•', cls: 'planned' };
   if (e.status === 'absent') return { txt: '✕', cls: 'absent' };
   if (e.hours != null) return { txt: nf.format(e.hours) + t('hoursShort'), cls: 'worked part' };
-  if (Number(e.days) === 1) return { txt: '1', cls: 'worked' };
+  if (Number(e.days) === 1) return { txt: '✓', cls: 'worked' };
   if (Number(e.days) === 0.5) return { txt: '½', cls: 'worked part' };
   return { txt: nf.format(e.days), cls: 'worked part' };
 }
@@ -466,15 +466,103 @@ async function quickSet(w, day, kind, extra = {}) {
 
 function viewPlanner() {
   const ws = planWorkers();
-  if (!ws.length) return h('div', { class: 'view' }, scopeBar(), periodBar(), empty(t('noWorkers'), !isForeman() && h('button', { class: 'btn', onclick: () => editWorker() }, t('addWorker'))));
+  if (!ws.length) return h('div', { class: 'view planner' }, scopeBar(), planHead(), empty(t('noWorkers'), !isForeman() && h('button', { class: 'btn', onclick: () => editWorker() }, t('addWorker'))));
   const r = curRange();
   const allKeys = (S.period === 'day' ? [S.anchor] : daysIn(r.start, r.end)).flatMap(d => ws.map(w => selKey(w.id, d)));
-  return h('div', { class: 'view' }, approvalsCard(), scopeBar(), periodBar(), !S.sel && siteLegend(),
+  return h('div', { class: 'view planner' }, approvalsBanner(), scopeBar(), planHead(), planTools(r, ws),
+    S.siteMode && !S.sel && S.period !== 'day' && siteLegend(),
     S.sel && h('p', { class: 'muted sel-hint' }, t('selectHint')),
     S.period === 'day' ? plannerDay(ws) : plannerGrid(ws), S.sel && selBar(allKeys));
 }
 
-const selectBtn = () => h('button', { class: 'btn ghost sm' + (S.sel ? ' on' : ''), onclick: () => { S.sel = S.sel ? null : new Set(); S.brush = ''; render(); } }, icon('check'), ' ', t('select'));
+function planHead() {
+  const r = curRange();
+  const isNow = inRange(today(), r);
+  const move = n => { S.anchor = shift(S.period, S.anchor, n); render(); };
+  return h('div', { class: 'phead' },
+    h('div', { class: 'ph-nav' },
+      h('button', { class: 'ph-arrow flip', 'aria-label': 'previous', onclick: () => move(-1) }, icon('left')),
+      h('div', { class: 'ph-t' }, h('b', null, periodLabel()),
+        isNow ? h('small', null, t(S.period === 'day' ? 'today' : S.period === 'week' ? 'thisWeek' : 'thisMonth'))
+          : h('button', { class: 'ph-today', onclick: () => { S.anchor = today(); S.scrollToday = true; render(); } }, t('backToToday'))),
+      h('button', { class: 'ph-arrow flip', 'aria-label': 'next', onclick: () => move(1) }, icon('right'))),
+    h('div', { class: 'seg ph-seg', role: 'tablist' }, ['day', 'week', 'month'].map(p => h('button', {
+      class: S.period === p ? 'on' : '', role: 'tab', 'aria-selected': String(S.period === p),
+      onclick: () => { S.period = p; S.scrollToday = true; S.sel = null; render(); }
+    }, t(p)))));
+}
+
+function planTools(r, ws) {
+  const fm = isForeman();
+  const ids = new Set(ws.map(w => w.id));
+  const planned = S.data.entries.filter(e => inRange(e.day, r) && ids.has(e.worker_id) && e.status === 'planned' && e.day <= today() && !locked(e) && !(fm && e.del_by));
+  const tool = (ic, label, on, fn, cls = '') => h('button', { class: 'ptool ' + cls + (on ? ' on' : ''), onclick: fn }, icon(ic), h('span', null, label));
+  return h('div', { class: 'ptools' },
+    tool('check', t('select'), !!S.sel, () => { S.sel = S.sel ? null : new Set(); S.brush = ''; S.siteMode = false; render(); }),
+    activeSites().length > 0 && S.period !== 'day' && tool('sites', t('assignSite'), !!S.siteMode, () => { S.siteMode = !S.siteMode; S.brush = ''; S.sel = null; render(); }),
+    S.period === 'week' && !S.sel && tool('copy', t('copyLastWeek'), false, () => copyLastWeek(r)),
+    S.period !== 'day' && planned.length > 0 && !S.sel && tool('check', `${t('markWorked')} (${planned.length})`, false, () => bulkMark(planned), 'primary'));
+}
+
+function approvalsBanner() {
+  if (isForeman()) return null;
+  const n = S.data.entries.filter(e => e.del_by).length;
+  if (!n) return null;
+  return h('button', { class: 'pbanner', onclick: () => go('dashboard') }, h('b', null, String(n)), h('span', null, t('pendingApprovals')), icon('left'));
+}
+
+async function paintMany(keys) {
+  const fm = isForeman();
+  const rows = [];
+  for (const k of keys) {
+    const [wid, day] = k.split('|');
+    const w = workerById(wid), e = entryAt(k);
+    if (!w || locked(e) || (fm && e?.del_by)) continue;
+    if (e) { if (e.site_id !== S.brush) rows.push({ ...e, site_id: S.brush || null }); }
+    else rows.push({ worker_id: wid, day, site_id: S.brush || null, status: 'planned', days: 0, hours: null, note: null, ...(fm ? {} : { rate: w.daily_rate }) });
+  }
+  if (!rows.length) return;
+  if (fm) rows.forEach(x => delete x.rate);
+  const saved = await S.store.saveMany('entries', rows);
+  merge('entries', saved);
+  S.store.snapshot(S.data);
+}
+
+function attachDrag(wrap) {
+  let st = null;
+  const cellAt = (x, y) => document.elementFromPoint(x, y)?.closest('.cb[data-k]');
+  const hit = cb => {
+    if (!cb || !st || st.keys.has(cb.dataset.k)) return;
+    st.keys.add(cb.dataset.k);
+    if (S.sel) { st.add ? S.sel.add(cb.dataset.k) : S.sel.delete(cb.dataset.k); cb.classList.toggle('sel', st.add); }
+    else cb.classList.add('sel');
+  };
+  wrap.addEventListener('pointerdown', ev => {
+    const cb = ev.target.closest('.cb[data-k]');
+    if (!cb) return;
+    ev.preventDefault();
+    st = { add: S.sel ? !S.sel.has(cb.dataset.k) : true, keys: new Set() };
+    hit(cb);
+    try { wrap.setPointerCapture(ev.pointerId); } catch {}
+  });
+  wrap.addEventListener('pointermove', ev => { if (st) hit(cellAt(ev.clientX, ev.clientY)); });
+  const end = async () => {
+    if (!st) return;
+    const keys = [...st.keys];
+    st = null;
+    if (S.sel) return render();
+    try {
+      if (keys.length === 1) {
+        const e = entryAt(keys[0]);
+        if (e && e.site_id === S.brush) { render(); return editEntry(workerById(e.worker_id), e.day); }
+      }
+      await paintMany(keys);
+    } catch (err) { fail(err); }
+    render();
+  };
+  wrap.addEventListener('pointerup', end);
+  wrap.addEventListener('pointercancel', end);
+}
 
 function siteLegend() {
   const sites = activeSites();
@@ -488,7 +576,7 @@ function siteLegend() {
         if (S.brush === s.id) b.style.borderColor = siteColor(s.id);
         return b;
       })),
-    S.brush && h('small', { class: 'muted block' }, t('assignHint')));
+    h('small', { class: 'muted block' }, S.brush ? t('dragHint') : t('assignHint')));
 }
 
 async function paint(w, day) {
@@ -524,25 +612,23 @@ function plannerDay(ws) {
   const pill = (cls, label, n) => h('span', { class: 'dpill ' + cls }, h('b', null, String(n)), label);
   return h('div', { class: 'dayview' },
     weekStrip(ws),
-    h('div', { class: 'daysum' },
-      h('div', { class: 'dpills' }, pill('good', t('worked'), cnt.worked), pill('plan', t('planned'), cnt.planned), pill('hot', t('absent'), cnt.absent), pill('', t('notMarked'), cnt.none)),
-      !fm && h('span', { class: 'dcost' }, t('laborCost'), h('b', null, usd(sum(des, e => e.amount))))),
-    h('div', { class: 'toolbar' },
-      !S.sel && todo.length > 0 ? h('button', { class: 'btn', onclick: () => applySel('full', todo.map(w => selKey(w.id, day))) }, icon('check'), ` ${t('allPresent', { n: todo.length })}`) : h('span'),
-      h('div', { class: 'tb-actions' }, selectBtn())),
-    h('div', { class: 'daylist' }, ws.map(w => {
+    h('div', { class: 'dpills' }, pill('good', t('worked'), cnt.worked), pill('plan', t('planned'), cnt.planned), pill('hot', t('absent'), cnt.absent), pill('', t('notMarked'), cnt.none)),
+    !S.sel && todo.length > 0 && h('button', { class: 'btn wide allp', onclick: () => applySel('full', todo.map(w => selKey(w.id, day))) }, icon('check'), t('allPresent', { n: todo.length })),
+    h('div', { class: 'drows' }, ws.map(w => {
       const e = byW.get(w.id);
       const key = selKey(w.id, day);
       if (S.sel) {
-        return h('button', { class: 'daycard selrow' + (S.sel.has(key) ? ' sel' : ''), onclick: () => toggleKeys([key]) },
+        return h('button', { class: 'drow selrow' + (S.sel.has(key) ? ' sel' : ''), onclick: () => toggleKeys([key]) },
           h('span', { class: 'selbox' }, S.sel.has(key) ? icon('check') : ''),
           avatar(w.name),
-          h('span', { class: 'wc-main' }, h('b', null, w.name), h('small', { class: 'muted' }, [e ? entryLabel(e) : t('notMarked'), e?.paid_by && t('paidTag'), e?.del_by && t('pendingDelete')].filter(Boolean).join(' · '))));
+          h('span', { class: 'dr-main' }, h('b', null, w.name), h('small', { class: 'muted' }, [e ? entryLabel(e) : t('notMarked'), e?.paid_by && t('paidTag'), e?.del_by && t('pendingDelete')].filter(Boolean).join(' · '))));
       }
       const lockedRow = locked(e) || (e?.del_by && fm);
       const cur = !e ? 'none' : e.status === 'worked' ? (e.hours != null ? 'hours' : Number(e.days) === 1 ? 'full' : Number(e.days) === 0.5 ? 'half' : 'hours') : e.status;
-      const opts = [['full', t('full'), 'check'], ['half', t('half'), null], ['hours', t('hours'), null], ['absent', t('absent'), 'close']];
-      const siteSel = siteSelect(e?.site_id ?? lastSite(w.id, day));
+      const opts = [['full', t('full')], ['half', t('half')], ['hours', cur === 'hours' && e ? `${nf.format(e.hours ?? e.days * S.data.biz.hours_per_day)} ${t('hoursShort')}` : t('hours')], ['absent', t('absent')]];
+      const siteId = e?.site_id ?? null;
+      const siteSel = siteSelect(siteId ?? lastSite(w.id, day));
+      siteSel.classList.add('dr-site');
       siteSel.addEventListener('change', async () => {
         try {
           if (e) await saveRow('entries', { ...e, site_id: siteSel.value || null }, true);
@@ -551,30 +637,28 @@ function plannerDay(ws) {
         } catch (err) { fail(err); }
       });
       if (lockedRow) siteSel.disabled = true;
-      const tag = e?.del_by ? h('span', { class: 'stag hot' }, t('pendingDelete'))
+      const right = e?.del_by ? h('span', { class: 'stag hot' }, t('pendingDelete'))
         : e?.paid_by ? h('span', { class: 'stag' }, `🔒 ${t('paidTag')}`)
         : cur === 'planned' ? h('span', { class: 'stag plan' }, t('planned'))
-        : cur === 'none' ? h('span', { class: 'stag' }, t('notMarked'))
         : !fm && e?.amount ? h('b', { class: 'dc-amt' }, usd(e.amount)) : null;
-      const card = h('div', { class: 'daycard st-' + cur + (e?.paid_by ? ' paid' : '') + (e?.del_by ? ' pend' : '') },
-        h('div', { class: 'dc-top' },
-          h('div', { class: 'who', onclick: () => !fm && openWorker(w.id) }, avatar(w.name),
-            h('div', { class: 'who-t' }, h('b', null, w.name), h('small', { class: 'muted block' }, [w.trade, !fm && `${usd(w.daily_rate)}${t('perDay')}`].filter(Boolean).join(' · ') || ' '))),
-          tag),
-        h('div', { class: 'stbtns' }, opts.map(([k, label, ic]) => h('button', {
-          class: 'stb ' + k + (cur === k ? ' on' : ''), disabled: lockedRow, onclick: async () => {
-            try {
-              if (k === 'hours') return askHours(w, day, e);
-              await quickSet(w, day, cur === k ? 'planned' : k);
-              render();
-            } catch (err) { fail(err); }
-          }
-        }, k === 'half' ? h('span', { class: 'stb-i' }, '½') : k === 'hours' ? h('span', { class: 'stb-i' }, cur === 'hours' && e ? `${nf.format(e.hours ?? e.days * S.data.biz.hours_per_day)}${t('hoursShort')}` : t('hoursShort')) : icon(ic),
-          h('span', null, label)))),
-        h('div', { class: 'dc-tools' }, siteSel,
-          h('button', { class: 'icon-btn', 'aria-label': t('edit'), onclick: () => editEntry(w, day) }, icon('edit'))));
-      if (e?.site_id) card.style.setProperty('--site', siteColor(e.site_id));
-      return card;
+      const row = h('div', { class: 'drow st-' + cur + (e?.paid_by ? ' paid' : '') + (e?.del_by ? ' pend' : '') },
+        h('div', { class: 'dr-top' },
+          h('button', { class: 'dr-who', onclick: () => editEntry(w, day) }, avatar(w.name),
+            h('span', { class: 'dr-main' }, h('b', null, w.name), h('small', { class: 'muted' }, w.trade || (cur === 'none' ? t('notMarked') : entryLabel(e))))),
+          right),
+        h('div', { class: 'dr-ctl' },
+          h('div', { class: 'dseg' }, opts.map(([k, label]) => h('button', {
+            class: k + (cur === k ? ' on' : ''), disabled: lockedRow, 'aria-pressed': String(cur === k), onclick: async () => {
+              try {
+                if (k === 'hours') return askHours(w, day, e);
+                await quickSet(w, day, cur === k ? 'planned' : k);
+                render();
+              } catch (err) { fail(err); }
+            }
+          }, label))),
+          activeSites().length > 0 && siteSel));
+      if (siteId) row.style.setProperty('--site', siteColor(siteId));
+      return row;
     })));
 }
 
@@ -612,15 +696,15 @@ function plannerGrid(ws) {
   const r = curRange();
   const days = daysIn(r.start, r.end);
   const fm = isForeman();
+  const painting = !!(S.sel || S.brush);
   const byKey = new Map(S.data.entries.filter(e => inRange(e.day, r)).map(e => [e.worker_id + e.day, e]));
-  const head = h('tr', null, h('th', { class: 'sticky' }, t('worker')),
+  const head = h('tr', null, h('th', { class: 'sticky' }),
     days.map(d => {
       const dt = toDate(d);
       return h('th', { class: 'dh' + (d === today() ? ' now' : '') + (dt.getDay() === 0 ? ' sun' : '') },
         h('button', { class: 'dh-btn', onclick: () => { if (S.sel) return toggleKeys(ws.map(w => selKey(w.id, d))); S.period = 'day'; S.anchor = d; render(); } },
           h('small', null, t('weekdays')[dt.getDay()]), h('span', null, dt.getDate())));
-    }),
-    h('th', { class: 'n' }, t('days')), !fm && h('th', { class: 'n' }, t('earned')));
+    }));
   const body = ws.map(w => {
     let dsum = 0, asum = 0;
     const cells = days.map(d => {
@@ -629,33 +713,29 @@ function plannerGrid(ws) {
       const c = cellCode(e);
       const site = e?.site_id ? siteById(e.site_id) : null;
       const k = selKey(w.id, d);
-      const btn = h('button', { class: 'cb ' + c.cls + (site ? ' has-site' : '') + (e?.paid_by ? ' paid' : '') + (e?.del_by ? ' pend' : '') + (S.sel?.has(k) ? ' sel' : ''), title: site?.name || '', 'aria-label': `${w.name} ${d}`, onclick: () => S.sel ? toggleKeys([k]) : S.brush ? paint(w, d) : editEntry(w, d) },
-        c.txt, site && h('i', { class: 'sd' }, site.name));
+      const btn = h('button', { class: 'cb ' + c.cls + (site ? ' has-site' : '') + (e?.paid_by ? ' paid' : '') + (e?.del_by ? ' pend' : '') + (S.sel?.has(k) ? ' sel' : ''), 'data-k': k, title: site?.name || '', 'aria-label': `${w.name} ${d}`, ...(painting ? {} : { onclick: () => editEntry(w, d) }) },
+        c.txt, site && S.period === 'week' && h('i', { class: 'sd' }, site.name));
       if (site) btn.style.setProperty('--site', siteColor(site.id));
       return h('td', { class: 'cell ' + (d === today() ? 'now' : '') }, btn);
     });
-    return h('tr', null, h('th', { class: 'sticky wname', onclick: () => S.sel ? toggleKeys(days.map(d => selKey(w.id, d))) : !fm && openWorker(w.id) }, h('span', { class: 'wn' }, avatar(w.name, 'xs'), h('span', null, w.name))),
-      cells, h('td', { class: 'n' }, daysTxt(dsum)), !fm && h('td', { class: 'n' }, usd(asum)));
+    return h('tr', null, h('th', { class: 'sticky wname', onclick: () => S.sel ? toggleKeys(days.map(d => selKey(w.id, d))) : !fm && openWorker(w.id) },
+      h('span', { class: 'wn' }, avatar(w.name, 'xs'), h('span', { class: 'wn-t' }, h('b', null, w.name),
+        h('small', null, dsum ? (fm ? `${daysTxt(dsum)} ${t('days')}` : `${daysTxt(dsum)} ${t('days')} · ${usd(asum)}`) : '—')))),
+      cells);
   });
-  const all = [...byKey.values()];
-  const totals = h('tr', { class: 'tot' }, h('th', { class: 'sticky' }, t('total')),
+  const all = [...byKey.values()].filter(e => ws.some(w => w.id === e.worker_id));
+  const totals = h('tr', { class: 'tot' }, h('th', { class: 'sticky' },
+    h('b', null, t('total')), h('small', null, fm ? `${daysTxt(sum(all.filter(worked), e => e.days))} ${t('days')}` : usd(sum(all, e => e.amount)))),
     days.map(d => {
-      const v = fm ? all.filter(e => e.day === d && worked(e)).length : sum(all.filter(e => e.day === d), e => e.amount);
-      return h('td', { class: 'n tiny' }, v ? nf0.format(v) : '');
-    }),
-    h('td', { class: 'n' }, daysTxt(sum(all.filter(worked), e => e.days))),
-    !fm && h('td', { class: 'n' }, usd(sum(all, e => e.amount))));
-
-  const planned = all.filter(e => e.status === 'planned' && e.day <= today() && !locked(e) && !(fm && e.del_by));
-  return h('div', null,
-    h('div', { class: 'toolbar' },
-      h('div', { class: 'legend' },
-        h('span', null, h('i', { class: 'lg worked' }), t('full')), h('span', null, h('i', { class: 'lg part' }), `${t('half')} / ${t('hours')}`),
-        h('span', null, h('i', { class: 'lg planned' }), t('planned')), h('span', null, h('i', { class: 'lg absent' }), t('absent'))),
-      h('div', { class: 'tb-actions' }, selectBtn(),
-        S.period === 'week' && !S.sel && h('button', { class: 'btn ghost sm', onclick: () => copyLastWeek(r) }, icon('copy'), ' ', t('copyLastWeek')),
-        planned.length > 0 && !S.sel && h('button', { class: 'btn sm', onclick: () => bulkMark(planned) }, icon('check'), ` ${t('markWorked')} (${planned.length})`))),
-    h('div', { class: 'grid-wrap ' + S.period }, h('table', { class: 'plan' }, h('thead', null, head), h('tbody', null, body, totals))));
+      const n = all.filter(e => e.day === d && worked(e)).length;
+      return h('td', { class: 'tiny' + (d === today() ? ' now' : '') }, n ? String(n) : '');
+    }));
+  const wrap = h('div', { class: 'grid-wrap ' + S.period + (painting ? ' painting' : '') }, h('table', { class: 'plan' }, h('thead', null, head), h('tbody', null, body, totals)));
+  if (painting) attachDrag(wrap);
+  return h('div', { class: 'gridbox' }, wrap,
+    h('div', { class: 'legend' },
+      h('span', null, h('i', { class: 'lg worked' }), t('full')), h('span', null, h('i', { class: 'lg part' }), `${t('half')} / ${t('hours')}`),
+      h('span', null, h('i', { class: 'lg planned' }), t('planned')), h('span', null, h('i', { class: 'lg absent' }), t('absent'))));
 }
 
 async function copyLastWeek(r) {
@@ -1833,7 +1913,7 @@ let swipe = null;
 root.addEventListener('touchstart', ev => {
   swipe = null;
   if (!S.data || ev.touches.length !== 1 || document.querySelector('.overlay')) return;
-  if (ev.target.closest('.grid-wrap, .tbl-wrap, .brushes, .chart, input, select, textarea, .auth')) return;
+  if (ev.target.closest('.grid-wrap, .tbl-wrap, .brushes, .ptools, .chart, input, select, textarea, .auth')) return;
   swipe = { x: ev.touches[0].clientX, y: ev.touches[0].clientY, t: Date.now() };
 }, { passive: true });
 root.addEventListener('touchend', ev => {

@@ -1,5 +1,15 @@
 export const CHANGELOG = [
   {
+    version: '1.11.0',
+    date: '2026-11-20',
+    items: [
+      { en: 'Planner redesign: the whole week now fits on the phone screen without scrolling sideways.', ar: 'تصميم جديد للتخطيط: الأسبوع كاملاً يظهر على شاشة الهاتف دون تمرير جانبي.' },
+      { en: 'Drag your finger across days to select them or to assign a project in one move.', ar: 'اسحب إصبعك فوق الأيام لتحديدها أو لتعيين مشروع بحركة واحدة.' },
+      { en: 'Day view: one compact row per worker with the status buttons and project on the same card.', ar: 'عرض اليوم: سطر واحد مختصر لكل عامل مع أزرار الحالة والمشروع.' },
+      { en: 'Each worker shows the days and amount for the period next to their name.', ar: 'يظهر لكل عامل عدد الأيام والمبلغ للفترة بجانب اسمه.' }
+    ]
+  },
+  {
     version: '1.10.0',
     date: '2026-11-20',
     items: [
