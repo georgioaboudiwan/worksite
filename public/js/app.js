@@ -949,12 +949,11 @@ function editWorker(w = {}) {
     const pk = key(f.phone.value);
     const clash = pk && S.data.workers.find(x => x.id !== w.id && key(x.phone) === pk);
     if (clash) throw new Error(t('phoneTaken', { name: clash.name }));
-    const saved = await saveRow('workers', {
+    await saveRow('workers', {
       id: w.id, name: f.name.value.trim(), trade: f.trade.value.trim() || null, daily_rate: Number(f.daily_rate.value),
       phone: f.phone.value.trim() || null, notes: f.notes.value.trim() || null, active: f.active.checked,
       ...(asg ? { assigned_to: asg.value || null } : {})
     });
-    if (!w.id) openWorker(saved.id);
   }, w.id && (async () => { await removeRow('workers', w.id); S.view = 'workers'; }));
   setTimeout(() => f.name.focus(), 50);
 }
