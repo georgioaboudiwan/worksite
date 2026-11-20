@@ -1,5 +1,14 @@
 export const CHANGELOG = [
   {
+    version: '1.10.0',
+    date: '2026-11-20',
+    items: [
+      { en: 'Full redesign: new typeface, navy and amber colours from the logo, grouped lists and clearer forms on every page.', ar: 'تصميم جديد بالكامل: خط جديد، ألوان الشعار الكحلي والذهبي، قوائم مجمّعة ونماذج أوضح في كل الصفحات.' },
+      { en: 'Pay up to a date: the date field no longer overflows on iPhone and the amounts are easier to edit.', ar: 'الدفع حتى تاريخ: حقل التاريخ لم يعد يخرج عن الشاشة على الآيفون وأصبح تعديل المبالغ أسهل.' },
+      { en: 'Forms open on a solid sheet so the text is easier to read.', ar: 'النماذج تفتح على خلفية ثابتة لتكون القراءة أسهل.' }
+    ]
+  },
+  {
     version: '1.9.0',
     date: '2026-11-16',
     items: [

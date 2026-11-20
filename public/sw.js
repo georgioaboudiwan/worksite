@@ -1,6 +1,6 @@
-const CACHE = 'worksite-v21';
+const CACHE = 'worksite-v22';
 const SHELL = ['./', 'index.html', 'styles.css', 'pdoc.css', 'manifest.webmanifest',
-  'js/app.js', 'js/store.js', 'js/util.js', 'js/i18n.js', 'js/docs.js', 'icons/icon.svg', 'icons/icon-192.png'];
+  'js/app.js', 'js/store.js', 'js/util.js', 'js/i18n.js', 'js/docs.js', 'icons/icon.svg', 'icons/icon-192.png', 'fonts/readex-arabic.woff2', 'fonts/readex-latin.woff2'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

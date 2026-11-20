@@ -371,7 +371,7 @@ function viewDashboard() {
       if (e?.site_id && e.status !== 'absent') el.style.boxShadow = `0 0 0 3px ${siteColor(e.site_id)}`;
       return el;
     })),
-    h('button', { class: 'btn ghost sm', onclick: () => { S.view = 'planner'; S.period = 'day'; S.anchor = today(); render(); } }, `${workedToday} ${t('worked')} →`));
+    h('button', { class: 'btn ghost sm', onclick: () => { S.view = 'planner'; S.period = 'day'; S.anchor = today(); render(); } }, `${workedToday} ${t('worked')}`));
 
   let bars;
   if (S.period === 'day') {
@@ -998,7 +998,7 @@ function viewSites() {
           h('span', null, h('small', null, t('expenses')), usd(st.expenses)),
           h('span', null, h('small', null, t('income')), usd(st.income)),
           h('span', { class: st.profit >= 0 ? 'good-t' : 'hot-t' }, h('small', null, t('profit')), usd(st.profit))));
-      card.style.borderInlineStartColor = siteColor(s.id);
+      card.style.setProperty('--site', siteColor(s.id));
       return card;
     })) : empty(t('noSites'), h('button', { class: 'btn', onclick: () => editSite() }, t('addSite'))),
     fab(t('addSite'), () => editSite()));
