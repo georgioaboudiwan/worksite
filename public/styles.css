@@ -626,3 +626,7 @@ html.ts-xl { zoom: 1.25; }
   .grid-wrap.week .dh-btn span { font-size: 15px; }
   .wn-t b { font-size: 13.5px; }
 }
+.wn-t b { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; }
+.plan tbody .wname { white-space: normal; }
+.dr-main b, .wc-main b, .who-t b { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .grid-wrap.week .plan .sticky { width: 104px; } .wn-t b { font-size: 13px; } }

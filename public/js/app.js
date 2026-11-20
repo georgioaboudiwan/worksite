@@ -719,7 +719,7 @@ function plannerGrid(ws) {
       return h('td', { class: 'cell ' + (d === today() ? 'now' : '') }, btn);
     });
     return h('tr', null, h('th', { class: 'sticky wname', onclick: () => S.sel ? toggleKeys(days.map(d => selKey(w.id, d))) : !fm && openWorker(w.id) },
-      h('span', { class: 'wn' }, avatar(w.name, 'xs'), h('span', { class: 'wn-t' }, h('b', null, w.name),
+      h('span', { class: 'wn', title: w.name }, avatar(w.name, 'xs'), h('span', { class: 'wn-t' }, h('b', null, w.name),
         h('small', null, dsum ? (fm ? `${daysTxt(dsum)} ${t('days')}` : `${daysTxt(dsum)} ${t('days')} · ${usd(asum)}`) : '—')))),
       cells);
   });
