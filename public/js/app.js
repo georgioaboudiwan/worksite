@@ -172,7 +172,7 @@ function toggleKeys(keys) {
   render();
 }
 
-async function applySel(kind, only) {
+async function applySel(kind, only, extra = {}) {
   const keys = only || [...S.sel];
   if (!keys.length) return;
   try {
@@ -186,7 +186,9 @@ async function applySel(kind, only) {
       merge('entries', r.pending || []);
       toast(r.pending?.length ? t('sentForApproval', { n: r.pending.length }) : t('deletedN', { n: del.size }));
     } else {
-      const map = { full: { status: 'worked', days: 1, hours: null }, half: { status: 'worked', days: 0.5, hours: null }, planned: { status: 'planned', days: 0, hours: null }, absent: { status: 'absent', days: 0, hours: null } };
+      const hpd = Number(S.data.biz.hours_per_day) || 8;
+      const map = { full: { status: 'worked', days: 1, hours: null }, half: { status: 'worked', days: 0.5, hours: null }, planned: { status: 'planned', days: 0, hours: null }, absent: { status: 'absent', days: 0, hours: null },
+        hours: { status: 'worked', days: round3(Number(extra.hours) / hpd), hours: Number(extra.hours) } };
       const rows = keys.map(k => {
         const [wid, day] = k.split('|');
         const w = workerById(wid), ex = entryAt(k);
@@ -205,14 +207,32 @@ async function applySel(kind, only) {
   } catch (err) { fail(err); }
 }
 
+function askBulkHours() {
+  const n = S.sel?.size || 0;
+  if (!n) return;
+  const input = h('input', { type: 'number', inputmode: 'decimal', min: '0.25', max: '24', step: 'any', required: true });
+  const quick = h('div', { class: 'qhours' }, [2, 3, 4, 5, 6, 7].map(v => h('button', { type: 'button', class: 'chip', onclick: () => { input.value = v; input.focus(); } }, `${v} ${t('hoursShort')}`)));
+  const form = h('form', { class: 'form' }, h('p', { class: 'muted' }, t('bulkHoursHint', { n })), field(t('hours'), input), quick,
+    h('p', { class: 'muted' }, `${t('hoursPerDay')}: ${S.data.biz.hours_per_day}`));
+  sheet(t('hoursFor', { n }), form, async () => {
+    const hrs = Number(input.value);
+    if (!(hrs > 0 && hrs <= 24)) throw new Error(t('hours'));
+    await applySel('hours', null, { hours: hrs });
+  }, null, { saveLabel: t('save') });
+  setTimeout(() => input.focus(), 50);
+}
+
 function selBar(allKeys) {
   const n = S.sel.size;
+  const keys = [...S.sel];
+  const wn = new Set(keys.map(k => k.split('|')[0])).size;
+  const dn = new Set(keys.map(k => k.split('|')[1])).size;
   return h('div', { class: 'selbar' },
-    h('div', { class: 'sb-top' }, h('b', null, t('selected', { n })),
+    h('div', { class: 'sb-top' }, h('div', { class: 'sb-count' }, h('b', null, t('selected', { n })), n > 0 && h('small', null, t('selSummary', { w: wn, d: dn }))),
       h('button', { class: 'btn ghost sm', onclick: () => toggleKeys(allKeys) }, t('selectAll')),
       h('button', { class: 'btn ghost sm', onclick: () => { S.sel = null; render(); } }, t('cancel'))),
     h('div', { class: 'sb-acts' },
-      [['full', t('full')], ['half', t('half')], ['absent', t('absent')], ['planned', t('planned')]].map(([k, l]) => h('button', { class: 'btn sm ' + k, disabled: !n, onclick: () => applySel(k) }, l)),
+      [['full', t('full')], ['half', t('half')], ['hours', t('hours')], ['absent', t('absent')], ['planned', t('planned')]].map(([k, l]) => h('button', { class: 'btn sm ' + k, disabled: !n, onclick: () => k === 'hours' ? askBulkHours() : applySel(k) }, l)),
       h('button', { class: 'btn danger ghost sm', disabled: !n, onclick: () => applySel('delete') }, icon('trash'), ' ', t('delete'))));
 }
 
@@ -701,7 +721,7 @@ function plannerGrid(ws) {
   const head = h('tr', null, h('th', { class: 'sticky' }),
     days.map(d => {
       const dt = toDate(d);
-      return h('th', { class: 'dh' + (d === today() ? ' now' : '') + (dt.getDay() === 0 ? ' sun' : '') },
+      return h('th', { class: 'dh' + (d === today() ? ' now' : '') + (dt.getDay() === 0 ? ' sun' : '') + (S.sel && ws.some(w => S.sel.has(selKey(w.id, d))) ? ' hassel' : '') },
         h('button', { class: 'dh-btn', onclick: () => { if (S.sel) return toggleKeys(ws.map(w => selKey(w.id, d))); S.period = 'day'; S.anchor = d; render(); } },
           h('small', null, t('weekdays')[dt.getDay()]), h('span', null, dt.getDate())));
     }));
@@ -718,7 +738,7 @@ function plannerGrid(ws) {
       if (site) btn.style.setProperty('--site', siteColor(site.id));
       return h('td', { class: 'cell ' + (d === today() ? 'now' : '') }, btn);
     });
-    return h('tr', null, h('th', { class: 'sticky wname', onclick: () => S.sel ? toggleKeys(days.map(d => selKey(w.id, d))) : !fm && openWorker(w.id) },
+    return h('tr', null, h('th', { class: 'sticky wname' + (S.sel && days.some(d => S.sel.has(selKey(w.id, d))) ? ' hassel' : ''), onclick: () => S.sel ? toggleKeys(days.map(d => selKey(w.id, d))) : !fm && openWorker(w.id) },
       h('span', { class: 'wn', title: w.name }, avatar(w.name, 'xs'), h('span', { class: 'wn-t' }, h('b', null, w.name),
         h('small', null, dsum ? (fm ? `${daysTxt(dsum)} ${t('days')}` : `${daysTxt(dsum)} ${t('days')} · ${usd(asum)}`) : '—')))),
       cells);
@@ -730,7 +750,7 @@ function plannerGrid(ws) {
       const n = all.filter(e => e.day === d && worked(e)).length;
       return h('td', { class: 'tiny' + (d === today() ? ' now' : '') }, n ? String(n) : '');
     }));
-  const wrap = h('div', { class: 'grid-wrap ' + S.period + (painting ? ' painting' : '') }, h('table', { class: 'plan' }, h('thead', null, head), h('tbody', null, body, totals)));
+  const wrap = h('div', { class: 'grid-wrap ' + S.period + (painting ? ' painting' : '') + (S.sel ? ' selecting' : '') }, h('table', { class: 'plan' }, h('thead', null, head), h('tbody', null, body, totals)));
   if (painting) attachDrag(wrap);
   return h('div', { class: 'gridbox' }, wrap,
     h('div', { class: 'legend' },
@@ -1912,7 +1932,7 @@ let swipe = null;
 root.addEventListener('touchstart', ev => {
   swipe = null;
   if (!S.data || ev.touches.length !== 1 || document.querySelector('.overlay')) return;
-  if (ev.target.closest('.grid-wrap, .tbl-wrap, .brushes, .ptools, .chart, input, select, textarea, .auth')) return;
+  if (ev.target.closest('.grid-wrap, .tbl-wrap, .brushes, .ptools, .sb-acts, .chart, input, select, textarea, .auth')) return;
   swipe = { x: ev.touches[0].clientX, y: ev.touches[0].clientY, t: Date.now() };
 }, { passive: true });
 root.addEventListener('touchend', ev => {

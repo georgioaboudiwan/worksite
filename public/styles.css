@@ -630,3 +630,24 @@ html.ts-xl { zoom: 1.25; }
 .plan tbody .wname { white-space: normal; }
 .dr-main b, .wc-main b, .who-t b { white-space: normal; overflow-wrap: anywhere; }
 @media (max-width: 760px) { .grid-wrap.week .plan .sticky { width: 104px; } .wn-t b { font-size: 13px; } }
+.grid-wrap.selecting .cb:not(.sel) { opacity: .5; }
+.grid-wrap.selecting .cb.sel { opacity: 1; }
+.cb.sel { outline: 3px solid var(--amber); outline-offset: -1px; }
+.cb.sel:not(.worked):not(.absent):not(.planned) { background: color-mix(in srgb, var(--amber) 24%, var(--card)); border: 1.5px solid var(--amber); }
+.cb.sel::before { content: "✓"; position: absolute; top: 2px; inset-inline-end: 2px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; line-height: 1; background: var(--amber); color: var(--accent-ink); box-shadow: 0 0 0 2px var(--card); }
+.plan th.wname.hassel { background: color-mix(in srgb, var(--amber) 16%, var(--card)); box-shadow: inset 4px 0 0 var(--amber); }
+[dir="rtl"] .plan th.wname.hassel { box-shadow: inset -4px 0 0 var(--amber); }
+.plan th.dh.hassel .dh-btn { box-shadow: inset 0 0 0 2px var(--amber); }
+.sb-count { flex: 1; display: flex; flex-direction: column; line-height: 1.3; }
+.sb-count b { font-size: 16px; font-weight: 700; }
+.sb-count small { font-size: 12.5px; color: var(--muted); }
+.sb-acts .btn.hours { background: var(--good-bg); color: var(--good); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--good) 50%, transparent); }
+.qhours { display: flex; flex-wrap: wrap; gap: 8px; }
+.qhours .chip { min-height: 40px; padding: 6px 14px; font-size: 14px; }
+.selbar { gap: 8px; padding: 10px 12px; }
+.sb-acts { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -2px; padding: 2px; }
+.sb-acts::-webkit-scrollbar { display: none; }
+.sb-acts .btn { flex: none; min-height: 42px; padding: 6px 14px; }
+.sb-acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; overflow: visible; margin: 0; padding: 0; }
+.sb-acts .btn { min-height: 40px; padding: 4px 6px; font-size: 13.5px; }
+.grid-wrap.week .cb.part { font-size: 12.5px; letter-spacing: -.02em; }
